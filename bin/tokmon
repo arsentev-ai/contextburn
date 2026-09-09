@@ -1,0 +1,607 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+tokmon — на что уходят токены: по сессиям и ПРИЧИНАМ.
+
+  tokmon                  кто жжёт прямо сейчас
+  tokmon разбор [часов]   подробный разбор: сессии + что именно раздуло контекст
+  tokmon окно             текущее 5-часовое окно подписки
+  tokmon --json           состояние в JSON (для счётчика в строке меню)
+  tokmon --probe <часов> [--detail]   зонд: сырой JSON по этой машине
+
+Считает ТОКЕНЫ (1k / 500k / 1.4kk / 3.6kkk) — то, что тратит подписка.
+Главное, что видно: расход = контекст × число ходов, а не «сложность вопроса».
+"""
+import json, os, sys, glob, time, calendar, subprocess, threading, collections
+
+# ── тарифы $/1M токенов: (вход, выход, запись кеша 5м, запись кеша 1ч, чтение кеша)
+PRICES = [
+    ("fable",    (10.0, 50.0, 12.50, 20.0, 0.25)),
+    ("mythos",   (10.0, 50.0, 12.50, 20.0, 0.25)),
+    ("opus",     ( 5.0, 25.0,  6.25, 10.0, 0.50)),
+    ("sonnet-5", ( 2.0, 10.0,  2.50,  4.0, 0.20)),
+    ("sonnet",   ( 3.0, 15.0,  3.75,  6.0, 0.30)),
+    ("haiku",    ( 1.0,  5.0,  1.25,  2.0, 0.10)),
+]
+DEFAULT = PRICES[2][1]                      # неизвестную модель считаем как opus
+HOSTS = ["local"]                           # считаем только эту машину
+HOME_NAME = os.path.basename(os.path.expanduser("~"))  # имя домашнего каталога, а не зашитый ник
+BUCKET = 300                                # корзина статистики — 5 минут
+WARN  = float(os.environ.get("TOKMON_WARN",  30_000_000))   # токенов/час — жёлтый
+ALARM = float(os.environ.get("TOKMON_ALARM", 90_000_000))   # токенов/час — красный
+
+def prices(model):
+    m = (model or "").lower()
+    for key, p in PRICES:
+        if key in m: return p
+    return DEFAULT
+
+def ts2(s):
+    try: return calendar.timegm(time.strptime(s[:19], "%Y-%m-%dT%H:%M:%S"))
+    except Exception: return 0
+
+def money(n):
+    """Токены человеческим видом: 900 · 12k · 500k · 1.4kk · 3.6kkk"""
+    n = float(n)
+    if n >= 1e9: return f"{n/1e9:.1f}kkk"
+    if n >= 1e6: return f"{n/1e6:.1f}kk"
+    if n >= 1e3: return f"{n/1e3:.0f}k"
+    return f"{n:.0f}"
+
+toks = money
+
+# ══════════════════════════════ ЗОНД ══════════════════════════════
+ACC_CACHE = {}
+
+def acc_name(cdir):
+    """Какая подписка: имя берём из e-mail в конфиге рядом с каталогом (локально, никуда не уходит)."""
+    if cdir in ACC_CACHE: return ACC_CACHE[cdir]
+    name = os.path.basename(cdir).replace(".claude", "акк").replace("акк-personal", "акк")
+    for cand in (os.path.join(cdir, ".claude.json"), cdir + ".json"):
+        try:
+            d = json.load(open(cand, errors="ignore"))
+            e = (d.get("oauthAccount") or {}).get("emailAddress")
+            if e: name = e.split("@")[0]; break
+        except Exception: pass
+    ACC_CACHE[cdir] = name
+    return name
+
+def roots():
+    """Каталоги projects всех пользователей системы (Claude может работать под другим пользователем)."""
+    out, seen = [], set()
+    # ⛔ на macOS НЕЛЬЗЯ трогать /home — это автомонтируемая точка, glob по ней вешает процесс
+    pats = ["~/.claude*/projects"]
+    pats += (["/Users/*/.claude*/projects"] if sys.platform == "darwin"
+             else ["/home/*/.claude*/projects", "/root/.claude*/projects"])
+    for pat in pats:
+        for d in glob.glob(os.path.expanduser(pat)):
+            rp = os.path.realpath(d)
+            if rp in seen or not os.access(d, os.R_OK): continue
+            seen.add(rp); out.append(d)
+    return out
+
+
+def scan(hours, detail=False):
+    """Разбирает локальные транскрипты. Возвращает список сессий."""
+    cut = time.time() - hours * 3600
+    names = {}
+    # необязательный файл «id сессии → человекочитаемое имя», путь задаётся TOKMON_NAMES
+    for mp in ([os.path.expanduser(os.environ["TOKMON_NAMES"])] if os.environ.get("TOKMON_NAMES") else []):
+        try:
+            for l in open(mp, errors="ignore"):
+                p = l.rstrip("\n").split("\t")
+                if len(p) >= 2: names[p[0]] = p[1]
+        except OSError: pass
+
+    out, seen_files = [], set()
+    for root in roots():
+        acc = acc_name(os.path.dirname(root))
+        for f in glob.glob(root + "/**/*.jsonl", recursive=True):
+            try:
+                rp = os.path.realpath(f)
+                if rp in seen_files: continue
+                if os.path.getmtime(f) < cut: continue
+                seen_files.add(rp)
+            except OSError: continue
+            s = parse_file(f, cut, detail)
+            if not s: continue
+            s["acc"] = acc
+            s["name"] = names.get(s["sid"], "")
+            out.append(s)
+    return out
+
+def parse_file(path, cut, detail):
+    sid = os.path.basename(path)[:-6]
+    tok = collections.Counter()               # in / cw5 / cw1h / cr / out
+    cost = collections.Counter()              # то же, но в долларах
+    buckets = collections.Counter()           # корзина 5 мин -> $
+    models = collections.Counter()
+    ctxs, turns, first, last, cwd, label = [], 0, 0, 0, "", ""
+    probes = []
+    try: want_probes = (time.time() - os.path.getmtime(path)) < 3 * 86400   # чат ищем только у свежих
+    except OSError: want_probes = False
+    tools = {}                                # id блока tool_use -> подпись
+    entries = []                              # что вошло в контекст (для разбора причин)
+    try: fh = open(path, errors="ignore")
+    except OSError: return None
+    with fh:
+        for line in fh:
+            if len(line) < 40: continue
+            has_usage = '"usage"' in line
+            is_user = (want_probes and len(line) < 12000 and '"type":"user"' in line
+                       and '"tool_result"' not in line and '"tool_use_id"' not in line)
+            if not (has_usage or is_user or detail or not cwd): continue
+            try: d = json.loads(line)
+            except Exception: continue
+            if d.get("cwd"): cwd = d["cwd"]
+            t = ts2(d.get("timestamp") or "")
+            m = d.get("message") or {}
+            content = m.get("content")
+
+            # реплики человека: заголовок сессии + образцы для опознания чата
+            if is_user and d.get("type") == "user":
+                c = content
+                if isinstance(c, list):
+                    c = " ".join(x.get("text", "") for x in c if isinstance(x, dict) and x.get("type") == "text")
+                if isinstance(c, str):
+                    c = " ".join(c.split())
+                    if c and not c.startswith("<") and "tool_result" not in c[:40]:
+                        if not label: label = c[:40]
+                        if len(c) > 25: probes.append(c[:70])
+
+            # что кладётся в контекст: ответы инструментов и вложения пользователя
+            if detail and d.get("type") == "user" and isinstance(content, list):
+                for b in content:
+                    if not isinstance(b, dict): continue
+                    if b.get("type") == "tool_result":
+                        entries.append([turns, blob_tokens(b.get("content")),
+                                        tools.get(b.get("tool_use_id"), "ответ инструмента")])
+                    elif b.get("type") == "text":
+                        n = len(b.get("text") or "") / 4.0
+                        if n > 1000: entries.append([turns, n, "текст от пользователя/системы"])
+                    elif b.get("type") == "image":
+                        entries.append([turns, 1600, "картинка"])
+
+            if not has_usage:
+                continue
+            u = m.get("usage"); mdl = m.get("model")
+            if u and want_probes and isinstance(content, list):   # ответы модели — образцы для опознания чата
+                for b in content:
+                    if isinstance(b, dict) and b.get("type") == "text":
+                        tx = " ".join((b.get("text") or "").split())
+                        if len(tx) > 30: probes.append(tx[:70])
+            if detail and isinstance(content, list):
+                for b in content:
+                    if isinstance(b, dict) and b.get("type") == "tool_use":
+                        tools[b.get("id")] = tool_label(b)
+            if not u or not mdl or "synthetic" in str(mdl): continue
+            if t and t < cut: continue
+
+            cc = u.get("cache_creation") or {}
+            i   = u.get("input_tokens", 0)
+            cr  = u.get("cache_read_input_tokens", 0)
+            w5  = cc.get("ephemeral_5m_input_tokens", 0)
+            w1h = cc.get("ephemeral_1h_input_tokens", 0)
+            if not (w5 or w1h): w5 = u.get("cache_creation_input_tokens", 0)
+            o   = u.get("output_tokens", 0)
+            c = dict(inp=i, cw5=w5, cw1h=w1h, cr=cr, out=o)
+            tot = sum(c.values())
+            for k, v in c.items(): cost[k] += v
+            tok.update(inp=i, cw5=w5, cw1h=w1h, cr=cr, out=o)
+            models[mdl.replace("claude-", "")] += 1
+            turns += 1
+            cur = i + cr + w5 + w1h
+            if cur > 1000: ctxs.append(cur)
+            if t:
+                buckets[int(t // BUCKET)] += tot
+                last = max(last, t); first = first or t
+    if not turns: return None
+    try: mt = os.path.getmtime(path)
+    except OSError: mt = 0
+    total = sum(cost.values())
+    rec = dict(sid=sid, probes=probes[-40:], sub="/subagents/" in path, cwd=cwd, label=label,
+               model=(models.most_common(1)[0][0] if models else "?"),
+               models=dict(models), turns=turns,
+               ctx=(ctxs[-1] if ctxs else 0), peak=(max(ctxs) if ctxs else 0),
+               cost=dict(cost), tok=dict(tok), total=total,
+               buckets={str(k): round(v, 6) for k, v in buckets.items()},
+               first=first, last=last or int(mt), age=int(time.time() - (last or mt)))
+    if detail:
+        # сколько «токен×перечитывание» мы опознали против того, что фактически прошло
+        itemized_re = sum(t * max(0, turns - at) for at, t, _ in entries) or 1
+        itemized_w  = sum(t for _, t, _ in entries) or 1
+        s_re = min(1.0, tok["cr"] / itemized_re)
+        s_w  = min(1.0, (tok["cw1h"] + tok["cw5"]) / itemized_w)
+        heavy = []
+        for at, t_est, what in entries:
+            reread = max(0, turns - at)
+            paid = t_est * reread * s_re + t_est * s_w
+            if paid >= 500:
+                heavy.append(dict(at=at, tokens=int(t_est), reread=reread, cost=paid, what=what))
+        heavy.sort(key=lambda x: -x["cost"])
+        groups, cats = {}, collections.Counter()
+        for h in heavy:
+            k = group_key(h["what"]); c = category(h["what"])
+            g = groups.setdefault(k, dict(cost=0.0, n=0, tokens=0, cat=c))
+            g["cost"] += h["cost"]; g["n"] += 1; g["tokens"] += h["tokens"]
+            cats[c] += h["cost"]
+        rec["heavy"] = heavy[:8]
+        rec["groups"] = dict(sorted(groups.items(), key=lambda x: -x[1]["cost"])[:10])
+        rec["cats"] = dict(cats)
+        rec["heavy_total"] = sum(h["cost"] for h in heavy)
+    return rec
+
+IMG_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".pdf")
+
+def category(what):
+    n = what.split("(")[0].strip()
+    low = what.lower()
+    if n == "картинка" or any(e in low for e in IMG_EXT): return "картинки и скриншоты"
+    if n == "Read": return "чтение файлов"
+    if n == "Bash": return "вывод команд"
+    if n in ("Grep", "Glob", "Explore"): return "поиск по файлам"
+    if n in ("Task", "Agent", "SendMessage"): return "отчёты субагентов"
+    if n in ("WebFetch", "WebSearch"): return "веб-страницы"
+    if n.startswith("mcp__"): return "MCP-инструменты"
+    if n.startswith("текст"): return "текст от пользователя"
+    return n or "прочее"
+
+def group_key(what):
+    n = what.split("(")[0].strip()
+    arg = what[len(n)+1:-1] if "(" in what else ""
+    if n == "Bash":
+        head = " ".join(arg.split()[:2])[:28]
+        return f"Bash: {head}"
+    if arg:
+        base = os.path.basename(arg.split()[0].rstrip("',\")")) or arg[:24]
+        return f"{n}: {base[:30]}"
+    return n
+
+def blob_tokens(c):
+    """Оценка размера в токенах того, что реально попадает в контекст.
+    Картинка стоит ~1.6K токенов, а не длину своего base64 — это важнее всего."""
+    if isinstance(c, str): return len(c) / 4.0
+    if isinstance(c, list):
+        t = 0.0
+        for b in c:
+            if not isinstance(b, dict): t += len(str(b)) / 4.0; continue
+            k = b.get("type")
+            if k == "image": t += 1600
+            elif k == "text": t += len(b.get("text") or "") / 4.0
+            else: t += len(json.dumps(b, ensure_ascii=False)) / 4.0
+        return t
+    return len(json.dumps(c, ensure_ascii=False)) / 4.0
+
+def tool_label(b):
+    name = b.get("name") or "инструмент"
+    inp = b.get("input") or {}
+    hint = ""
+    if isinstance(inp, dict):
+        for k in ("command", "file_path", "pattern", "path", "url", "prompt", "description"):
+            if inp.get(k):
+                hint = " ".join(str(inp[k]).split())[:52]; break
+    return f"{name}({hint})" if hint else name
+
+# ══════════════════════════ СБОР ══════════════════════════
+def probe(host, hours, detail):
+    args = ["--probe", str(hours)] + (["--detail"] if detail else [])
+    src = open(os.path.abspath(__file__), encoding="utf-8").read()
+    try:
+        r = subprocess.run(["python3", "-"] + args, input=src, capture_output=True, text=True, timeout=180)
+        line = [l for l in r.stdout.splitlines() if l.startswith("{")]
+        if not line:
+            err = (r.stderr.strip().splitlines() or ["нет ответа"])[-1][:70]
+            return dict(err=err, sessions=[])
+        return json.loads(line[-1])
+    except Exception as e:
+        return dict(err=type(e).__name__, sessions=[])
+
+def collect(hours, detail, hosts=None):
+    hosts = hosts or HOSTS
+    out = {}
+    th = []
+    for h in hosts:
+        def go(h=h): out[h] = probe(h, hours, detail)
+        t = threading.Thread(target=go); t.start(); th.append(t)
+    for t in th: t.join()
+    return out
+
+def flatten(data):
+    """Все сессии, с дедупликацией по sid (один id в двух учётках)."""
+    rows = []
+    for host, d in data.items():
+        uniq = {}
+        for s in d.get("sessions", []):
+            o = uniq.get(s["sid"])
+            if not o or s["turns"] > o["turns"]: uniq[s["sid"]] = s
+        for s in uniq.values():
+            s["host"] = host; rows.append(s)
+    return rows
+
+def who(s):
+    n = s.get("name") or s.get("label") or os.path.basename(s.get("cwd") or "") or s["sid"][:8]
+    return ("суб·" if s.get("sub") else "") + n
+
+def rate(rows, minutes):
+    """$/час по корзинам за последние N минут."""
+    lo = int((time.time() - minutes * 60) // BUCKET)
+    v = sum(c for s in rows for b, c in s.get("buckets", {}).items() if int(b) >= lo)
+    return v / (minutes / 60.0)
+
+def window(rows, hours):
+    lo = int((time.time() - hours * 3600) // BUCKET)
+    return sum(c for s in rows for b, c in s.get("buckets", {}).items() if int(b) >= lo)
+
+# ══════════════════════════ ВЫВОД ══════════════════════════
+DAY_START_HOUR = int(os.environ.get("TOKMON_DAY_START", 6))   # сутки считаем с 6:00, а не с полуночи
+
+def day_start():
+    lt = time.localtime()
+    st = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, DAY_START_HOUR, 0, 0, 0, 0, -1))
+    if time.time() < st: st -= 86400
+    return st
+
+def since(s, ts):
+    return sum(c for b, c in s.get("buckets", {}).items() if int(b) * BUCKET >= ts)
+
+def day_series(rows):
+    """Почасовой ряд от начала МОИХ суток до текущего часа + подписи часов."""
+    st = day_start(); now = time.time()
+    n = max(1, int((now - st) // 3600) + 1)
+    out = [0.0] * n
+    for s in rows:
+        for b, c in s.get("buckets", {}).items():
+            i = int((int(b) * BUCKET - st) // 3600)
+            if 0 <= i < n: out[i] += c
+    labels = [time.strftime("%H", time.localtime(st + i * 3600)) for i in range(n)]
+    return out, labels
+
+def series(rows, minutes=120, step=600):
+    """Расход по корзинам step секунд за последние minutes — для графика тренда."""
+    now = time.time(); n = int(minutes * 60 // step)
+    out = [0.0] * n
+    for s in rows:
+        for b, c in s.get("buckets", {}).items():
+            idx = int((now - int(b) * BUCKET) // step)
+            if 0 <= idx < n: out[n - 1 - idx] += c
+    return out
+
+def hour_slices(rows, dst, n):
+    """Разбор по каждому часу суток: задачи именно этого часа."""
+    out = []
+    for i in range(n):
+        lo, hi = dst + i * 3600, dst + (i + 1) * 3600
+        hosts = collections.Counter(); items = []
+        for s in rows:
+            v = sum(c for b, c in s.get("buckets", {}).items() if lo <= int(b) * BUCKET < hi)
+            if v > 0:
+                hosts[s["host"]] += v
+                items.append((v, s))
+        items.sort(key=lambda x: -x[0])
+        out.append(dict(total=sum(hosts.values()), hosts=dict(hosts),
+                        top=[dict(host=s["host"], task=task(s), sub=s["sub"], v=v)
+                             for v, s in items[:5]]))
+    return out
+
+def split_since(rows, ts):
+    new = re = 0.0
+    for s in rows:
+        share = since(s, ts) / (s["total"] or 1)
+        c = s["cost"]
+        re += c.get("cr", 0) * share
+        new += (c.get("inp", 0) + c.get("cw5", 0) + c.get("cw1h", 0) + c.get("out", 0)) * share
+    return dict(new=new, reread=re)
+
+def split(rows, hours):
+    """Из чего состоят токены за период: новые (вход+запись кеша+выход) и перечитывание."""
+    lo = int((time.time() - hours * 3600) // BUCKET)
+    new = re = 0.0
+    for s in rows:
+        share = 0.0
+        tot = s["total"] or 1
+        for b, c in s.get("buckets", {}).items():
+            if int(b) >= lo: share += c
+        k = share / tot
+        cst = s["cost"]
+        re += cst.get("cr", 0) * k
+        new += (cst.get("inp", 0) + cst.get("cw5", 0) + cst.get("cw1h", 0) + cst.get("out", 0)) * k
+    return dict(new=new, reread=re)
+
+def win(s, hours):
+    lo = int((time.time() - hours * 3600) // BUCKET)
+    return sum(c for b, c in s.get("buckets", {}).items() if int(b) >= lo)
+
+def task(s):
+    """Чем занята сессия: имя прогона → проект → первая реплика."""
+    ch = ""
+    if ch: return "▪ " + ch
+    n = (s.get("name") or "").strip()
+    if n: return n
+    cwd = os.path.basename(s.get("cwd") or "")
+    lab = " ".join((s.get("label") or "").split())
+    lab = lab.lstrip("⛔ ").strip()
+    if lab.startswith("/"): lab = os.path.basename(lab.split()[0])   # путь → имя файла
+    if cwd and cwd not in (HOME_NAME, "root", "~"): return (cwd + " · " + lab)[:34] if lab else cwd
+    return lab[:34] or s["sid"][:8]
+
+def state(hours=8, detail=False, hosts=None):
+    data = collect(hours, detail, hosts)
+    rows = flatten(data)
+    now = [s for s in rows if s["age"] < 1800]
+    hl = hosts or HOSTS
+    for s in rows: s.pop("probes", None)
+    dst = day_start()
+    dser, dlab = day_series(rows)
+    st = dict(
+        day_start=time.strftime("%H:%M", time.localtime(dst)),
+        day_total=sum(since(s, dst) for s in rows),
+        day_series=dser, day_labels=dlab,
+        day_hosts={h: sum(since(s, dst) for s in rows if s["host"] == h) for h in hl},
+        day_top=[dict(host=s["host"], task=task(s), ctx=s["ctx"], sub=s["sub"],
+                      turns=s["turns"], day=since(s, dst))
+                 for s in sorted(rows, key=lambda s: -since(s, dst))[:6] if since(s, dst) > 0],
+        day_split=split_since(rows, dst),
+        day_hours=hour_slices(rows, dst, len(dser)),
+        ts=int(time.time()),
+        series=series(rows),
+        series24=series(rows, 1440, 3600),
+        accounts24={},
+        w30=window(rows, 0.5),
+        split24=split(rows, 24),
+        hosts_w1={h: sum(win(s, 1) for s in rows if s["host"] == h) for h in hl},
+        hosts_w24={h: sum(win(s, 24) for s in rows if s["host"] == h) for h in hl},
+        top24=[dict(host=s["host"], task=task(s), ctx=s["ctx"], turns=s["turns"],
+                    model=s["model"], sub=s["sub"], w24=win(s, 24), age=s["age"])
+               for s in sorted(rows, key=lambda s: -win(s, 24))[:6] if win(s, 24) > 0],
+        top1h=[dict(host=s["host"], task=task(s), ctx=s["ctx"], turns=s["turns"],
+                    model=s["model"], sub=s["sub"], w1=win(s, 1), age=s["age"])
+               for s in sorted(rows, key=lambda s: -win(s, 1))[:6] if win(s, 1) > 0],
+        errors={h: d["err"] for h, d in data.items() if d.get("err")},
+        rate15=rate(rows, 15), rate60=rate(rows, 60),
+        w1=window(rows, 1), w5=window(rows, 5), w24=window(rows, 24),
+        live=sorted(now, key=lambda s: -sum(c for b, c in s.get("buckets", {}).items()
+                                            if int(b) >= int((time.time()-3600)//BUCKET)))[:8],
+        top=sorted(rows, key=lambda s: -s["total"])[:8],
+        hosts={h: sum(s["total"] for s in rows if s["host"] == h) for h in (hosts or HOSTS)},
+        sessions=rows,
+    )
+    acc = collections.Counter()
+    for s in rows: acc[s.get("acc", "?")] += win(s, 24)
+    st["accounts24"] = dict(acc)
+    accd = collections.Counter()
+    for s in rows: accd[s.get("acc", "?")] += since(s, dst)
+    st["day_accounts"] = dict(accd)
+    ser = st["series"]                       # 12 корзин по 10 минут
+    hot = 0
+    for v in reversed(ser):
+        if v * 6 > WARN: hot += 10
+        else: break
+    st["hot_minutes"] = hot
+    return st
+
+def cmd_now(hosts=None):
+    st = state(26, False, hosts)
+    r = st["rate15"]
+    flag = "⛔ ТРЭШ" if r > ALARM else ("⚠ высоко" if r > WARN else "норма")
+    print(f"═══ РАСХОД СЕЙЧАС · {time.strftime('%H:%M:%S')} ═══")
+    print(f"скорость: {money(r)} токенов/час  ({flag})     за час {money(st['w1'])} · за 5 ч {money(st['w5'])} · за сутки {money(st['w24'])}")
+    for h, e in st["errors"].items(): print(f"  ⛔ {h}: {e}")
+    print(f"\n{'машина':<9} {'кто':<26} {'модель':<12} {'контекст':>9} {'ходов':>6} {'за час':>8} {'ход стоит':>10}")
+    lo = int((time.time() - 3600) // BUCKET)
+    for s in st["live"]:
+        hr = sum(c for b, c in s.get("buckets", {}).items() if int(b) >= lo)
+        nxt = s["ctx"]
+        warn = "⛔" if s["ctx"] > 150000 else ("⚠" if s["ctx"] > 100000 else " ")
+        print(f"{s['host']:<9} {who(s)[:26]:<26} {s['model'][:12]:<12} "
+              f"{toks(s['ctx']):>7}{warn} {s['turns']:>6} {money(hr):>8} {money(nxt):>10}")
+    if not st["live"]: print("  — активных сессий нет")
+    print("\n«ход стоит» — сколько токенов уйдёт на ОДИН следующий ответ: весь контекст читается заново.")
+    print("Подробно, кто и на чём сжёг:  tokmon разбор 12")
+
+def cmd_window(hosts=None):
+    st = state(6, False, hosts)
+    rows = st["sessions"]
+    print(f"═══ ТЕКУЩЕЕ 5-ЧАСОВОЕ ОКНО · {time.strftime('%H:%M')} ═══\n")
+    print(f"сожжено за 5 часов: {money(st['w5'])} токенов    скорость: {money(st['rate15'])}/час")
+    lo = int((time.time() - 5 * 3600) // BUCKET)
+    per = []
+    for s in rows:
+        v = sum(c for b, c in s.get("buckets", {}).items() if int(b) >= lo)
+        if v > 1000: per.append((v, s))
+    per.sort(key=lambda x: -x[0])
+    print(f"\n{'доля':>6} {'машина':<9} {'кто':<30} {'ходов':>6} {'за 5 ч':>8}")
+    tot = sum(v for v, _ in per) or 1
+    for v, s in per[:12]:
+        print(f"{100*v/tot:>5.0f}% {s['host']:<9} {who(s)[:30]:<30} {s['turns']:>6} {money(v):>8}")
+
+def cmd_detail(hours=12, hosts=None):
+    st = state(hours, True, hosts)
+    rows = sorted(st["sessions"], key=lambda s: -s["total"])
+    total = sum(s["total"] for s in rows)
+    print(f"═══ РАЗБОР РАСХОДА за {hours} ч · {time.strftime('%d.%m %H:%M')} ═══\n")
+    for h, e in st["errors"].items(): print(f"  ⛔ {h} недоступна: {e}")
+
+    # ── по машинам
+    print(f"ВСЕГО {money(total)} токенов      по машинам:")
+    for h, v in sorted(st["hosts"].items(), key=lambda x: -x[1]):
+        n = len([s for s in rows if s["host"] == h])
+        bar = "█" * int(24 * v / (total or 1))
+        print(f"  {h:<10} {money(v):>8}  {n:>3} сессий  {bar}")
+
+    # ── по статьям расхода
+    art = collections.Counter()
+    tk = collections.Counter()
+    for s in rows:
+        art.update(s["cost"]); tk.update(s["tok"])
+    NAMES = dict(cw1h="запись кеша (TTL 1 час)", cw5="запись кеша (TTL 5 мин)",
+                 cr="перечитывание контекста", out="ответы модели (выход)",
+                 inp="вход без кеша")
+    print(f"\nНА ЧТО ИМЕННО:")
+    for k, v in art.most_common():
+        share = 100 * v / (total or 1)
+        print(f"  {NAMES.get(k,k):<34} {money(v):>9}  {share:>4.0f}%")
+
+    # ── сессии
+    print(f"\n{'машина':<9} {'кто':<28} {'модель':<11} {'ходов':>6} {'пик ctx':>8} {'сожгла':>8}")
+    for s in rows[:15]:
+        if s["total"] < 1000: continue
+        print(f"{s['host']:<9} {who(s)[:28]:<28} {s['model'][:11]:<11} {s['turns']:>6} "
+              f"{toks(s['peak']):>8} {money(s['total']):>8}")
+
+    # ── ПРИЧИНЫ
+    cats = collections.Counter(); groups = {}
+    ident = 0.0
+    for s in rows:
+        ident += s.get("heavy_total", 0.0)
+        cats.update(s.get("cats", {}))
+        for k, g in (s.get("groups") or {}).items():
+            t = groups.setdefault(k, dict(cost=0.0, n=0, cat=g["cat"], hosts=set()))
+            t["cost"] += g["cost"]; t["n"] += g["n"]; t["hosts"].add(s["host"])
+    rest = max(0.0, total - ident)
+
+    print(f"\n═══ ПРИЧИНЫ: чем набит контекст, за который платят каждый ход ═══")
+    print(f"{'статья':<26} {'токенов':>9} {'доля':>6}")
+    for k, v in cats.most_common(10):
+        print(f"  {k:<24} {money(v):>9} {100*v/(total or 1):>5.0f}%")
+    print(f"  {'переписка, промпт, ответы':<24} {money(rest):>8} {100*rest/(total or 1):>5.0f}%")
+
+    print(f"\nКОНКРЕТНО (что чаще всего лежит в контексте):")
+    print(f"{'сожгло':>8} {'раз':>5}  что")
+    for k, g in sorted(groups.items(), key=lambda x: -x[1]["cost"])[:15]:
+        print(f"{money(g['cost']):>8} {g['n']:>5}  {k[:46]:<46} [{','.join(sorted(g['hosts']))[:18]}]")
+
+    # ── цена длины сессии
+    print(f"\n═══ ЦЕНА ДЛИНЫ: сколько стоит просто НЕ закрывать сессию ═══")
+    print(f"{'машина':<9} {'кто':<26} {'ходов':>6} {'ср.ctx':>7} {'сожгла':>8}  следующий ход")
+    for s in rows[:8]:
+        if s["turns"] < 20: continue
+        nxt = s["ctx"]
+        avg = s["tok"].get("cr", 0) / max(1, s["turns"])
+        print(f"{s['host']:<9} {who(s)[:26]:<26} {s['turns']:>6} {toks(avg):>7} {money(s['total']):>8}"
+              f"       {money(nxt)} за ход")
+
+def main():
+    a = sys.argv[1:]
+    if a and a[0] == "--probe":
+        hours = float(a[1]) if len(a) > 1 else 8
+        print(json.dumps(dict(sessions=scan(hours, "--detail" in a)), ensure_ascii=False))
+        return
+    hosts = None
+    if "--hosts" in a:
+        i = a.index("--hosts"); hosts = a[i+1].split(","); del a[i:i+2]
+    if a and a[0] == "--json":
+        hours = float(a[1]) if len(a) > 1 else 26
+        st = state(hours, False, hosts)
+        st.pop("sessions", None)
+        print(json.dumps(st, ensure_ascii=False))
+    elif a and a[0] in ("разбор", "detail", "-d"):
+        cmd_detail(float(a[1]) if len(a) > 1 else 12, hosts)
+    elif a and a[0] in ("окно", "window", "-w"):
+        cmd_window(hosts)
+    elif a and a[0] in ("-h", "--help", "помощь"):
+        print(__doc__)
+    else:
+        cmd_now(hosts)
+
+if __name__ == "__main__":
+    main()
