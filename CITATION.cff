@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "tokmon: a run-efficiency meter for language-model coding agents"
+title: "contextburn: a run-efficiency meter for language-model coding agents"
 message: "If you use this software, please cite it using the metadata from this file."
 type: software
 authors:
@@ -7,10 +7,10 @@ authors:
     given-names: Evgenii
     orcid: "https://orcid.org/0000-0002-9120-7298"
     website: "https://arsentev.ai"
-repository-code: "https://github.com/arsentev-ai/tokmon"
+repository-code: "https://github.com/arsentev-ai/contextburn"
 url: "https://arsentev.ai"
 abstract: >-
-  tokmon reads the local transcripts an LLM coding agent already writes and reports where the
+  contextburn reads the local transcripts an LLM coding agent already writes and reports where the
   tokens actually went — by session, by machine and by reason. Beyond the usual counters it
   reports run efficiency: the share of paid tokens that became model output rather than a
   re-reading of context already sent. The share is given twice, by tokens and weighted by

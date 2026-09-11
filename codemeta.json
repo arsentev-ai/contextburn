@@ -1,9 +1,9 @@
 {
   "@context": "https://w3id.org/codemeta/3.0",
   "@type": "SoftwareSourceCode",
-  "name": "tokmon",
+  "name": "contextburn",
   "description": "A run-efficiency meter for language-model coding agents: reads local Claude Code transcripts and reports the share of paid tokens that became model output rather than a re-reading of context already sent, by tokens and cost-weighted. Makes no network calls.",
-  "codeRepository": "https://github.com/arsentev-ai/tokmon",
+  "codeRepository": "https://github.com/arsentev-ai/contextburn",
   "url": "https://arsentev.ai",
   "license": "https://spdx.org/licenses/MIT",
   "programmingLanguage": ["Python", "Swift"],

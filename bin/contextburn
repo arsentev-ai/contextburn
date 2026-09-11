@@ -1,32 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-tokmon — where your agent tokens actually go: by session and by REASON.
+contextburn — where your agent tokens actually go: by session and by REASON.
 
-  tokmon                     who is burning tokens right now
-  tokmon detail [hours]      full breakdown: sessions + what inflated the context
-  tokmon window              current 5-hour subscription window
-  tokmon --json              state as JSON (for the menubar counter)
-  tokmon --probe <hours> [--detail]   raw JSON probe for this machine
+  contextburn                     who is burning tokens right now
+  contextburn detail [hours]      full breakdown: sessions + what inflated the context
+  contextburn window              current 5-hour subscription window
+  contextburn --json              state as JSON (for the menubar counter)
+  contextburn --probe <hours> [--detail]   raw JSON probe for this machine
 
 Counts TOKENS (1k / 500k / 1.4kk / 3.6kkk) — what the subscription actually spends.
 The point it makes visible: spend = context x turns, not "how hard the question was".
 
-Interface language: English by default. Russian: TOKMON_LANG=ru, or put "ru"
-into ~/.config/tokmon/lang (the menubar app reads the same file).
+Interface language: English by default. Russian: CONTEXTBURN_LANG=ru, or put "ru"
+into ~/.config/contextburn/lang (the menubar app reads the same file).
 Russian command aliases also work: разбор, окно, помощь.
 """
 import json, os, sys, glob, time, calendar, subprocess, threading, collections
 
 # ⛔ Interface is English by default: the tool is published internationally.
-# Russian stays available for the author's own machine via TOKMON_LANG=ru.
+# Russian stays available for the author's own machine via CONTEXTBURN_LANG=ru.
+def _env(key, default=None):
+    """CONTEXTBURN_<key>, falling back to the former TOKMON_<key> so existing setups keep working."""
+    return os.environ.get("CONTEXTBURN_" + key) or os.environ.get("TOKMON_" + key, default)
+
 def _lang():
-    v = os.environ.get("TOKMON_LANG")
+    v = _env("LANG")
     if v:
         return v.strip().lower()[:2]
     # Same switch the menubar app reads: it is launched from Finder, where env vars never arrive.
     try:
-        with open(os.path.expanduser("~/.config/tokmon/lang"), encoding="utf-8") as fh:
+        with open(os.path.expanduser("~/.config/contextburn/lang"), encoding="utf-8") as fh:
             return fh.read().strip().lower()[:2] or "en"
     except OSError:
         return "en"
@@ -51,8 +55,8 @@ DEFAULT = PRICES[2][1]                      # неизвестную модел�
 HOSTS = ["local"]                           # считаем только эту машину
 HOME_NAME = os.path.basename(os.path.expanduser("~"))  # имя домашнего каталога, а не зашитый ник
 BUCKET = 300                                # корзина статистики — 5 минут
-WARN  = float(os.environ.get("TOKMON_WARN",  30_000_000))   # токенов/час — жёлтый
-ALARM = float(os.environ.get("TOKMON_ALARM", 90_000_000))   # токенов/час — красный
+WARN  = float(_env("WARN",  30_000_000))   # токенов/час — жёлтый
+ALARM = float(_env("ALARM", 90_000_000))   # токенов/час — красный
 
 def prices(model):
     m = (model or "").lower()
@@ -109,8 +113,8 @@ def scan(hours, detail=False):
     """Разбирает локальные транскрипты. Возвращает список сессий."""
     cut = time.time() - hours * 3600
     names = {}
-    # необязательный файл «id сессии → человекочитаемое имя», путь задаётся TOKMON_NAMES
-    for mp in ([os.path.expanduser(os.environ["TOKMON_NAMES"])] if os.environ.get("TOKMON_NAMES") else []):
+    # необязательный файл «id сессии → человекочитаемое имя», путь задаётся CONTEXTBURN_NAMES
+    for mp in ([os.path.expanduser(_env("NAMES"))] if _env("NAMES") else []):
         try:
             for l in open(mp, errors="ignore"):
                 p = l.rstrip("\n").split("\t")
@@ -357,7 +361,7 @@ def window(rows, hours):
     return sum(c for s in rows for b, c in s.get("buckets", {}).items() if int(b) >= lo)
 
 # ══════════════════════════ ВЫВОД ══════════════════════════
-DAY_START_HOUR = int(os.environ.get("TOKMON_DAY_START", 6))   # сутки считаем с 6:00, а не с полуночи
+DAY_START_HOUR = int(_env("DAY_START", 6))   # сутки считаем с 6:00, а не с полуночи
 
 def day_start():
     lt = time.localtime()
@@ -521,7 +525,7 @@ def cmd_now(hosts=None):
     if not st["live"]: print(tr("  - no active sessions", "  — активных сессий нет"))
     print(tr("\n\"per turn\" is what ONE next answer will cost: the whole context is read again.",
         "\n«ход стоит» — сколько токенов уйдёт на ОДИН следующий ответ: весь контекст читается заново."))
-    print(tr("Full breakdown:  tokmon detail 12", "Подробно, кто и на чём сжёг:  tokmon разбор 12"))
+    print(tr("Full breakdown:  contextburn detail 12", "Подробно, кто и на чём сжёг:  contextburn разбор 12"))
 
 def cmd_window(hosts=None):
     st = state(6, False, hosts)

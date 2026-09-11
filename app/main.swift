@@ -1,29 +1,36 @@
-// TokMon — расход токенов: полоска в строке меню + разворачиваемая панель
-// с интерактивным почасовым графиком. Сутки считаются от 6:00 (TOKMON_DAY_START).
+// contextburn — расход токенов: полоска в строке меню + разворачиваемая панель
+// с интерактивным почасовым графиком. Сутки считаются от 6:00 (CONTEXTBURN_DAY_START).
 import Cocoa
 
-// Interface language: English by default. Russian via TOKMON_LANG=ru, or a file
-// ~/.config/tokmon/lang containing "ru". The app is normally launched from Finder, where
+// CONTEXTBURN_<key>, falling back to the former TOKMON_<key> so existing setups keep working.
+func envVar(_ key: String) -> String? {
+    let e = ProcessInfo.processInfo.environment
+    if let v = e["CONTEXTBURN_" + key], !v.isEmpty { return v }
+    return e["TOKMON_" + key]
+}
+
+// Interface language: English by default. Russian via CONTEXTBURN_LANG=ru, or a file
+// ~/.config/contextburn/lang containing "ru". The app is normally launched from Finder, where
 // environment variables never reach it, so the file is the switch that actually works.
-let TOKMON_LANG: String = {
-    if let v = ProcessInfo.processInfo.environment["TOKMON_LANG"], !v.isEmpty {
+let UI_LANG: String = {
+    if let v = envVar("LANG"), !v.isEmpty {
         return String(v.lowercased().prefix(2))
     }
-    let path = NSString(string: "~/.config/tokmon/lang").expandingTildeInPath
+    let path = NSString(string: "~/.config/contextburn/lang").expandingTildeInPath
     if let raw = try? String(contentsOfFile: path, encoding: .utf8) {
         return String(raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().prefix(2))
     }
     return "en"
 }()
 
-func tr(_ en: String, _ ru: String) -> String { TOKMON_LANG == "ru" ? ru : en }
+func tr(_ en: String, _ ru: String) -> String { UI_LANG == "ru" ? ru : en }
 
 
-// Путь к CLI. Переопределяется переменной TOKMON_BIN, иначе ищем в обычных местах.
-let TOKMON = ProcessInfo.processInfo.environment["TOKMON_BIN"]
-    ?? ["\(NSHomeDirectory())/bin/tokmon", "/usr/local/bin/tokmon", "/opt/homebrew/bin/tokmon"]
+// Путь к CLI. Переопределяется переменной CONTEXTBURN_BIN, иначе ищем в обычных местах.
+let CLI = envVar("BIN")
+    ?? ["\(NSHomeDirectory())/bin/contextburn", "/usr/local/bin/contextburn", "/opt/homebrew/bin/contextburn"]
         .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
-    ?? "tokmon"
+    ?? "contextburn"
 let REFRESH: TimeInterval = 60
 let W_FULL: CGFloat = 470
 
@@ -337,9 +344,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     var warn: Double = 80_000_000, alarm: Double = 160_000_000
 
     func applicationDidFinishLaunching(_ n: Notification) {
-        let e = ProcessInfo.processInfo.environment
-        if let v = e["TOKMON_WARN"].flatMap(Double.init) { warn = v }
-        if let v = e["TOKMON_ALARM"].flatMap(Double.init) { alarm = v }
+        if let v = envVar("WARN").flatMap(Double.init) { warn = v }
+        if let v = envVar("ALARM").flatMap(Double.init) { alarm = v }
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.isVisible = true
         item.button?.title = "⚡…"
@@ -364,7 +370,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         if busy { return }
         busy = true
         DispatchQueue.global(qos: .utility).async {
-            let out = self.shell(TOKMON, ["--json", "26"])
+            let out = self.shell(CLI, ["--json", "26"])
             var p: [String: Any] = [:]
             if let d = out.data(using: .utf8),
                let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] { p = j }
@@ -541,8 +547,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
     @objc func openReport() {
         DispatchQueue.global(qos: .utility).async {
-            let out = self.shell(TOKMON, ["detail", "24"])
-            let path = NSTemporaryDirectory() + "tokmon-detail.txt"
+            let out = self.shell(CLI, ["detail", "24"])
+            let path = NSTemporaryDirectory() + "contextburn-detail.txt"
             try? out.write(toFile: path, atomically: true, encoding: .utf8)
             let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             p.arguments = ["-t", path]; try? p.run()

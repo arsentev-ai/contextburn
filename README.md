@@ -1,14 +1,14 @@
-# tokmon
+# contextburn
 
 **How much of what your coding agent spends is actually work.**
 
-Token counters answer *"how much did I spend?"* — there are plenty of them. `tokmon` answers a
+Token counters answer *"how much did I spend?"* — there are plenty of them. `contextburn` answers a
 different question: **what share of the paid tokens became model output, and what share was the
 agent re-reading context it had already sent?** That share is a normalised number, so it can be
 compared across sessions, models, tools and ways of working. An absolute counter cannot do that.
 
 ```
-$ tokmon detail 24
+$ contextburn detail 24
 === SPEND BREAKDOWN, 24.0h · 11.09 19:10 ===
 
 TOTAL 3.1kkk tokens
@@ -40,7 +40,7 @@ The underlying experiment, with dataset and analysis scripts:
 ## What it reads
 
 Local Claude Code transcripts (`~/.claude/projects/**/*.jsonl`) — the files the CLI already writes
-on your own machine. **Nothing leaves the machine: `tokmon` makes no network calls at all.**
+on your own machine. **Nothing leaves the machine: `contextburn` makes no network calls at all.**
 
 Usage records are deduplicated by message id and reconciled with an element-wise maximum, because a
 streaming runtime writes an early snapshot and a final record for the same model call: counting both
@@ -49,59 +49,64 @@ double-counts the call, and keeping only the first halves the output.
 ## Install
 
 ```bash
-cp bin/tokmon ~/bin/tokmon && chmod +x ~/bin/tokmon   # python3 only, no dependencies
-tokmon
+cp bin/contextburn ~/bin/contextburn && chmod +x ~/bin/contextburn   # python3 only, no dependencies
+contextburn
 ```
 
 ## Usage
 
 | command | what it shows |
 |---|---|
-| `tokmon` | what is burning tokens right now |
-| `tokmon detail [hours]` | run efficiency, sessions, and what specifically inflated the context |
-| `tokmon window` | the current 5-hour subscription window |
-| `tokmon --json` | machine-readable state (used by the menu-bar app) |
-| `tokmon --probe <hours>` | raw JSON dump of the parsed sessions |
+| `contextburn` | what is burning tokens right now |
+| `contextburn detail [hours]` | run efficiency, sessions, and what specifically inflated the context |
+| `contextburn window` | the current 5-hour subscription window |
+| `contextburn --json` | machine-readable state (used by the menu-bar app) |
+| `contextburn --probe <hours>` | raw JSON dump of the parsed sessions |
 
 ### Configuration
 
 | setting | default | meaning |
 |---|---|---|
-| `TOKMON_LANG` or `~/.config/tokmon/lang` | `en` | interface language: `en` or `ru` |
-| `TOKMON_DAY_START` | `6` | hour your day starts — the daily total resets here, not at midnight |
-| `TOKMON_WARN` | `30000000` | tokens/hour that turns the menu-bar counter yellow |
-| `TOKMON_ALARM` | `90000000` | tokens/hour that turns it red |
+| `CONTEXTBURN_LANG` or `~/.config/contextburn/lang` | `en` | interface language: `en` or `ru` |
+| `CONTEXTBURN_DAY_START` | `6` | hour your day starts — the daily total resets here, not at midnight |
+| `CONTEXTBURN_WARN` | `30000000` | tokens/hour that turns the menu-bar counter yellow |
+| `CONTEXTBURN_ALARM` | `90000000` | tokens/hour that turns it red |
 
 The language file exists because the menu-bar app is launched from Finder, where environment
-variables never reach it. `echo ru > ~/.config/tokmon/lang` switches both the app and the CLI.
+variables never reach it. `echo ru > ~/.config/contextburn/lang` switches both the app and the CLI.
 Russian command aliases (`разбор`, `окно`) also work.
 
 ## Menu-bar app (macOS)
 
-`app/main.swift` is a small status-bar app: it polls `tokmon --json` once a minute and shows the
+`app/main.swift` is a small status-bar app: it polls `contextburn --json` once a minute and shows the
 current burn rate in the menu bar, with an hourly graph. Click a bar to see that hour's breakdown.
 
 ```bash
-swiftc -O -o TokMon app/main.swift
+swiftc -O -o ContextBurn app/main.swift
 ```
 
-Point it at the CLI with `TOKMON_BIN=/path/to/tokmon` if it is not in `~/bin` or the usual
+Point it at the CLI with `CONTEXTBURN_BIN=/path/to/contextburn` if it is not in `~/bin` or the usual
 Homebrew locations.
 
 ## Notes
 
 - Prices are per-million-token rates for current Claude models and live at the top of
-  `bin/tokmon`. Update them there when they change; the cost-weighted share depends on them.
+  `bin/contextburn`. Update them there when they change; the cost-weighted share depends on them.
 
 ## Citing
 
-If you use `tokmon` or its efficiency measure in your work, GitHub's **"Cite this repository"**
+If you use `contextburn` or its efficiency measure in your work, GitHub's **"Cite this repository"**
 button gives the reference — metadata is in [`CITATION.cff`](CITATION.cff).
 
 ## Author
 
 Evgenii Arsentev — [arsentev.ai](https://arsentev.ai) ·
 ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)
+
+## Former name
+
+This project was published as `tokmon` for its first day and renamed to avoid
+confusion with unrelated tools of that name. `TOKMON_*` environment variables still work.
 
 ## License
 
