@@ -1,59 +1,46 @@
-# contextburn
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="contextburn: real output over 24 hours — useful work 0.18% of tokens, context re-reading 98.4%, cost-weighted useful work 6.7%, one useful token costs 555 paid tokens">
+</p>
 
-**How much of what your coding agent spends is actually work.**
+**contextburn** reads the transcripts Claude Code already writes on your machine and tells you what
+share of the tokens you paid for became model output — and how much was the agent re-reading
+context it had already sent.
 
-Token counters answer *"how much did I spend?"* — there are plenty of them. `contextburn` answers a
-different question: **what share of the paid tokens became model output, and what share was the
-agent re-reading context it had already sent?** That share is a normalised number, so it can be
-compared across sessions, models, tools and ways of working. An absolute counter cannot do that.
+Token counters answer *"how much did I spend?"*. This answers *"how much of it was work?"* — a
+normalised share, so it can be compared across sessions, models and ways of working.
 
-```
-$ contextburn detail 24
-=== SPEND BREAKDOWN, 24.0h · 11.09 19:10 ===
-
-TOTAL 3.1kkk tokens
-
-=== RUN EFFICIENCY ===
-  useful work (model output)          0.18% of tokens
-  context re-reading                  98.4% of tokens
-  useful work, cost-weighted           6.7%
-  one useful token costs               555 paid tokens
-```
-
-## Why two efficiency numbers
-
-They are reported separately on purpose, because they measure different things.
-
-- **By tokens** the share barely moves. It is a property of how agents work: every step resends
-  the accumulated context, so re-reading dominates whatever you do.
-- **Cost-weighted** the share does move, because cached reads are priced far below fresh input
-  and output. It depends on how you run sessions — and that part is under your control.
-
-In a controlled comparison of the same 12 programming tasks run as one long session versus twelve
-short ones (3 runs each, all tests passing), token efficiency was **1.11 % vs 1.12 %** — no
-difference — while cost-weighted efficiency was **31.6 % vs 24.6 %**. The token share describes the
-agent; the cost share describes the operator. A plain counter shows neither.
-
-The underlying experiment, with dataset and analysis scripts:
-[Clear Every Third Task: A Measured U-Curve in the Context Economy of Coding Agents](https://doi.org/10.5281/zenodo.22699668).
-
-## What it reads
-
-Local Claude Code transcripts (`~/.claude/projects/**/*.jsonl`) — the files the CLI already writes
-on your own machine. **Nothing leaves the machine: `contextburn` makes no network calls at all.**
-
-Usage records are deduplicated by message id and reconciled with an element-wise maximum, because a
-streaming runtime writes an early snapshot and a final record for the same model call: counting both
-double-counts the call, and keeping only the first halves the output.
-
-## Install
+## Try it
 
 ```bash
 cp bin/contextburn ~/bin/contextburn && chmod +x ~/bin/contextburn   # python3 only, no dependencies
-contextburn
+contextburn detail 24
 ```
 
-## Usage
+## Why two numbers
+
+<p align="center">
+  <img src="./assets/readme/two-numbers.svg" width="100%" alt="Same 12 tasks, one long session versus twelve short, 3 runs each: token efficiency 1.11% vs 1.12%, no difference; cost-weighted efficiency 31.6% vs 24.6%, seven points apart">
+</p>
+
+- **By tokens** the share barely moves. Every agent step resends the accumulated context, so
+  re-reading dominates whatever you do — it describes the agent.
+- **Cost-weighted** the share does move, because cached reads are priced far below fresh input and
+  output. It depends on how you run sessions — it describes you.
+
+The comparison above comes from a controlled experiment with its dataset and analysis scripts:
+[Clear Every Third Task: A Measured U-Curve in the Context Economy of Coding Agents](https://doi.org/10.5281/zenodo.22699668).
+
+## How it counts
+
+- Reads local Claude Code transcripts (`~/.claude/projects/**/*.jsonl`). **Nothing leaves the
+  machine — no network calls at all.**
+- Deduplicates usage records by message id and keeps the element-wise maximum. A streaming runtime
+  writes an early snapshot and a final record for the same call: counting both double-counts it,
+  keeping only the first halves the output.
+- Weights the cost share with per-model prices kept at the top of `bin/contextburn`. Update them
+  there when they change.
+
+## Commands
 
 | command | what it shows |
 |---|---|
@@ -68,45 +55,41 @@ contextburn
 | setting | default | meaning |
 |---|---|---|
 | `CONTEXTBURN_LANG` or `~/.config/contextburn/lang` | `en` | interface language: `en` or `ru` |
-| `CONTEXTBURN_DAY_START` | `6` | hour your day starts — the daily total resets here, not at midnight |
+| `CONTEXTBURN_DAY_START` | `6` | hour your day starts — the daily total resets here |
 | `CONTEXTBURN_WARN` | `30000000` | tokens/hour that turns the menu-bar counter yellow |
 | `CONTEXTBURN_ALARM` | `90000000` | tokens/hour that turns it red |
 
 The language file exists because the menu-bar app is launched from Finder, where environment
-variables never reach it. `echo ru > ~/.config/contextburn/lang` switches both the app and the CLI.
-Russian command aliases (`разбор`, `окно`) also work.
+variables never reach it: `echo ru > ~/.config/contextburn/lang` switches both the app and the CLI.
 
 ## Menu-bar app (macOS)
 
-`app/main.swift` is a small status-bar app: it polls `contextburn --json` once a minute and shows the
-current burn rate in the menu bar, with an hourly graph. Click a bar to see that hour's breakdown.
+`app/main.swift` is a small status-bar app. It polls `contextburn --json` once a minute and shows the
+current burn rate with an hourly graph; click a bar to see that hour's breakdown.
 
 ```bash
 swiftc -O -o ContextBurn app/main.swift
 ```
 
-Point it at the CLI with `CONTEXTBURN_BIN=/path/to/contextburn` if it is not in `~/bin` or the usual
-Homebrew locations.
+Set `CONTEXTBURN_BIN=/path/to/contextburn` if the CLI is not in `~/bin` or the usual Homebrew paths.
 
-## Notes
+## Limits
 
-- Prices are per-million-token rates for current Claude models and live at the top of
-  `bin/contextburn`. Update them there when they change; the cost-weighted share depends on them.
+- Claude Code transcripts only, for now.
+- The cost-weighted share is only as current as the price table in `bin/contextburn`.
 
 ## Citing
 
-If you use `contextburn` or its efficiency measure in your work, GitHub's **"Cite this repository"**
-button gives the reference — metadata is in [`CITATION.cff`](CITATION.cff).
+GitHub's **"Cite this repository"** button gives the reference; metadata is in
+[`CITATION.cff`](CITATION.cff).
 
 ## Author
 
 Evgenii Arsentev — [arsentev.ai](https://arsentev.ai) ·
 ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)
 
-## Former name
-
-This project was published as `tokmon` for its first day and renamed to avoid
-confusion with unrelated tools of that name. `TOKMON_*` environment variables still work.
+This project was published as `tokmon` on its first day and renamed to avoid confusion with
+unrelated tools of that name; `TOKMON_*` environment variables still work.
 
 ## License
 

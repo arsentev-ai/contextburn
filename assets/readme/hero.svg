@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="title desc">
+  <title id="title">contextburn — how much of what your coding agent spends is actually work</title>
+  <desc id="desc">Real output of contextburn detail over 24 hours: useful work 0.18 percent of tokens, context re-reading 98.4 percent, cost-weighted useful work 6.7 percent, one useful token costs 555 paid tokens. A full-width bar shows the long grey re-reading share and the thin orange sliver of model output at its end.</desc>
+
+  <rect width="1200" height="440" rx="24" fill="#0B0C0E"/>
+
+  <g id="title-block" transform="translate(64 0)">
+    <text x="0" y="86" fill="#8A8F98" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="2">CLAUDE CODE · RUN EFFICIENCY</text>
+    <text x="0" y="168" fill="#F2EFE8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="80" font-weight="700" letter-spacing="-1.5">context<tspan fill="#FF6A1A">burn</tspan></text>
+    <text x="0" y="220" fill="#F2EFE8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="28">How much of what your coding agent</text>
+    <text x="0" y="256" fill="#F2EFE8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="28">spends is actually work.</text>
+    <text x="0" y="302" fill="#8A8F98" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20">local · no network calls · MIT</text>
+  </g>
+
+  <g id="project-proof" transform="translate(690 52)">
+    <rect width="446" height="252" rx="14" fill="#15171B" stroke="#2A2D33" stroke-width="1.5"/>
+    <text x="26" y="44" fill="#8A8F98" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20">$ contextburn detail 24</text>
+    <line x1="26" y1="62" x2="420" y2="62" stroke="#2A2D33" stroke-width="1.5"/>
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="21">
+      <text x="26" y="100" fill="#F2EFE8" font-weight="700">RUN EFFICIENCY</text>
+      <text x="26" y="138" fill="#C9CCD1">useful work</text>
+      <text x="420" y="138" fill="#FF6A1A" text-anchor="end" font-weight="700">0.18%</text>
+      <text x="26" y="172" fill="#C9CCD1">re-reading</text>
+      <text x="420" y="172" fill="#F2EFE8" text-anchor="end">98.4%</text>
+      <text x="26" y="206" fill="#C9CCD1">cost-weighted</text>
+      <text x="420" y="206" fill="#F2EFE8" text-anchor="end">6.7%</text>
+      <text x="26" y="232" fill="#8A8F98" font-size="19">1 useful token = 555 paid</text>
+    </g>
+  </g>
+
+  <g id="burn-bar" transform="translate(64 346)">
+    <rect x="0" y="0" width="1072" height="28" rx="6" fill="#3A3E45"/>
+    <rect x="1054" y="0" width="14" height="28" fill="#6B7079"/>
+    <rect x="1066" y="0" width="6" height="28" rx="2" fill="#FF6A1A"/>
+    <text x="0" y="62" fill="#8A8F98" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19">98.4% — the agent re-reading context it already sent</text>
+    <text x="1072" y="62" fill="#FF6A1A" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19">0.18% output ↑</text>
+  </g>
+</svg>
