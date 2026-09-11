@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "contextburn"
-version = "0.1.0"
+version = "0.1.1"
 description = "How much of what your coding agent spends is actually work: the share of paid tokens that became output, not context re-reading."
 readme = "README.md"
 requires-python = ">=3.8"
