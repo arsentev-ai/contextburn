@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.arsentev-ai/contextburn",
+  "title": "contextburn",
+  "description": "Run efficiency for coding agents: share of paid tokens that became output, not context re-reading.",
+  "version": "0.2.0",
+  "websiteUrl": "https://arsentev.ai",
+  "repository": {
+    "url": "https://github.com/arsentev-ai/contextburn",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "contextburn",
+      "version": "0.2.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+contextburn-mcp — Model Context Protocol server for contextburn.
+
+Lets a coding agent read its own run efficiency: what share of the tokens it was paid for became
+output, and how much went on re-reading context it had already sent. It speaks MCP over stdio
+(JSON-RPC 2.0, one message per line), has no dependencies, and makes no network calls — it only
+runs the local `contextburn` CLI.
+
+Register with Claude Code:
+    claude mcp add contextburn -- contextburn-mcp
+"""
+import json, os, shutil, subprocess, sys
+
+SERVER = {"name": "contextburn", "version": "0.2.0"}
+FALLBACK_PROTOCOL = "2025-06-18"
+
+TOOLS = [
+    {
+        "name": "run_efficiency",
+        "title": "Run efficiency",
+        "description": ("Share of paid tokens that became model output versus re-reading of context "
+                        "already sent, over the last N hours of local Claude Code sessions. Reported by "
+                        "tokens and cost-weighted."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"hours": {"type": "number", "minimum": 0.1, "maximum": 720, "default": 24,
+                                     "description": "Look-back window in hours."}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "spend_breakdown",
+        "title": "Spend breakdown",
+        "description": ("Human-readable breakdown of token spend over the last N hours: run efficiency, "
+                        "sessions, and what specifically inflated the context."),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"hours": {"type": "number", "minimum": 0.1, "maximum": 720, "default": 12}},
+            "additionalProperties": False,
+        },
+    },
+]
+
+
+def cli_path():
+    """CONTEXTBURN_BIN, then the CLI next to this file, then PATH."""
+    env = os.environ.get("CONTEXTBURN_BIN")
+    if env:
+        return env
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contextburn")
+    if os.path.exists(here):
+        return here
+    return shutil.which("contextburn") or "contextburn"
+
+
+def run_cli(args):
+    env = dict(os.environ, CONTEXTBURN_LANG="en")  # tool output is for the model: keep it English
+    cmd = [cli_path()] + args
+    if cmd[0].endswith("contextburn") and not os.access(cmd[0], os.X_OK):
+        cmd = [sys.executable] + cmd
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=env)
+    if r.returncode != 0:
+        raise RuntimeError((r.stderr or r.stdout).strip()[-400:] or "contextburn failed")
+    return r.stdout
+
+
+def hours_arg(arguments, default):
+    try:
+        h = float((arguments or {}).get("hours", default))
+    except (TypeError, ValueError):
+        h = default
+    return max(0.1, min(720.0, h))
+
+
+def call_tool(name, arguments):
+    if name == "run_efficiency":
+        h = hours_arg(arguments, 24)
+        data = json.loads(run_cli(["--efficiency", str(h)]))
+        per = data.get("paid_tokens_per_useful_token")
+        summary = (f"Last {h:g}h, {data['sessions']} sessions: useful work {data['useful_share_tokens']:.2f}% of tokens, "
+                   f"context re-reading {data['reread_share_tokens']:.1f}%, cost-weighted useful work "
+                   f"{data['useful_share_cost']:.1f}%" + (f"; one useful token costs {per:.0f} paid tokens." if per else "."))
+        return {"content": [{"type": "text", "text": summary}], "structuredContent": data, "isError": False}
+    if name == "spend_breakdown":
+        h = hours_arg(arguments, 12)
+        return {"content": [{"type": "text", "text": run_cli(["detail", str(h)])}], "isError": False}
+    raise KeyError(name)
+
+
+def reply(msg_id, result=None, error=None):
+    out = {"jsonrpc": "2.0", "id": msg_id}
+    if error is not None:
+        out["error"] = error
+    else:
+        out["result"] = result
+    sys.stdout.write(json.dumps(out, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def handle(msg):
+    method, msg_id, params = msg.get("method"), msg.get("id"), msg.get("params") or {}
+    if msg_id is None:  # notification, e.g. notifications/initialized
+        return
+    if method == "initialize":
+        reply(msg_id, {"protocolVersion": params.get("protocolVersion") or FALLBACK_PROTOCOL,
+                       "capabilities": {"tools": {}}, "serverInfo": SERVER})
+    elif method == "ping":
+        reply(msg_id, {})
+    elif method == "tools/list":
+        reply(msg_id, {"tools": TOOLS})
+    elif method == "tools/call":
+        try:
+            reply(msg_id, call_tool(params.get("name"), params.get("arguments")))
+        except KeyError:
+            reply(msg_id, error={"code": -32602, "message": f"Unknown tool: {params.get('name')}"})
+        except Exception as e:  # tool failure is reported to the model, not as a protocol error
+            reply(msg_id, {"content": [{"type": "text", "text": f"contextburn error: {e}"}], "isError": True})
+    else:
+        reply(msg_id, error={"code": -32601, "message": f"Method not found: {method}"})
+
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        return
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            reply(None, error={"code": -32700, "message": "Parse error"})
+            continue
+        handle(msg)
+
+
+if __name__ == "__main__":
+    main()

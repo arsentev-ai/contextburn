@@ -51,6 +51,8 @@ The comparison above comes from a controlled experiment with its dataset and ana
 | `contextburn window` | the current 5-hour subscription window |
 | `contextburn --json` | machine-readable state (used by the menu-bar app) |
 | `contextburn --probe <hours>` | raw JSON dump of the parsed sessions |
+| `contextburn --efficiency [hours]` | run efficiency as JSON |
+| `contextburn mcp` | start the MCP server |
 
 ### Configuration
 
@@ -63,6 +65,18 @@ The comparison above comes from a controlled experiment with its dataset and ana
 
 The language file exists because the menu-bar app is launched from Finder, where environment
 variables never reach it: `echo ru > ~/.config/contextburn/lang` switches both the app and the CLI.
+
+## MCP server
+
+Let the agent read its own run efficiency mid-session. The package ships a dependency-free MCP
+server (stdio) with two tools: `run_efficiency` returns the shares as structured data, and
+`spend_breakdown` returns the full report.
+
+```bash
+claude mcp add contextburn -- uvx contextburn mcp
+```
+
+<!-- mcp-name: io.github.arsentev-ai/contextburn -->
 
 ## Menu-bar app (macOS)
 

@@ -7,6 +7,8 @@ contextburn — where your agent tokens actually go: by session and by REASON.
   contextburn detail [hours]      full breakdown: sessions + what inflated the context
   contextburn window              current 5-hour subscription window
   contextburn --json              state as JSON (for the menubar counter)
+  contextburn --efficiency [hours] run efficiency as JSON (used by the MCP server)
+  contextburn mcp                 start the MCP server (stdio)
   contextburn --probe <hours> [--detail]   raw JSON probe for this machine
 
 Counts TOKENS (1k / 500k / 1.4kk / 3.6kkk) — what the subscription actually spends.
@@ -543,6 +545,42 @@ def cmd_window(hosts=None):
     for v, s in per[:12]:
         print(f"{100*v/tot:>5.0f}% {s['host']:<9} {who(s)[:30]:<30} {s['turns']:>6} {money(v):>8}")
 
+def efficiency(rows):
+    """Run efficiency over a set of sessions — the metric this tool exists for.
+
+    Counters answer "how much was spent". This answers "how much of it was work": the share of
+    paid tokens that became model output. It is reported twice on purpose. By tokens it barely
+    moves (a property of how agents resend context); cost-weighted it depends on how sessions are
+    run (a property of the operator). Definition: draft-arsentev-agent-run-metrics (IETF).
+    """
+    tk = collections.Counter()
+    for s in rows:
+        tk.update(s["tok"])
+    out_tok = tk.get("out", 0)
+    all_tok = sum(tk.values())
+    # Session costs are stored in TOKENS; money is weighted here with each session's model prices.
+    out_cost = all_cost = 0.0
+    for ss in rows:
+        pr = prices(ss.get("model") or "")
+        c = ss["cost"]
+        money_out = c.get("out", 0) / 1e6 * pr[1]
+        money_in = (c.get("inp", 0) / 1e6 * pr[0] + c.get("cw5", 0) / 1e6 * pr[2]
+                    + c.get("cw1h", 0) / 1e6 * pr[3] + c.get("cr", 0) / 1e6 * pr[4])
+        out_cost += money_out
+        all_cost += money_out + money_in
+    eff_tok = 100.0 * out_tok / all_tok if all_tok else 0.0
+    return dict(
+        sessions=len(rows),
+        tokens_total=all_tok,
+        output_tokens=out_tok,
+        reread_tokens=tk.get("cr", 0),
+        useful_share_tokens=eff_tok,
+        reread_share_tokens=100.0 * tk.get("cr", 0) / all_tok if all_tok else 0.0,
+        useful_share_cost=100.0 * out_cost / all_cost if all_cost else 0.0,
+        paid_tokens_per_useful_token=(100.0 / eff_tok) if eff_tok else None,
+        cost_usd=round(all_cost, 4),
+    )
+
 def cmd_detail(hours=12, hosts=None):
     st = state(hours, True, hosts)
     rows = sorted(st["sessions"], key=lambda s: -s["total"])
@@ -577,23 +615,8 @@ def cmd_detail(hours=12, hosts=None):
     #   по ТОКЕНАМ  — почти не двигается, это природа агентов, повлиять нельзя;
     #   по ДЕНЬГАМ  — зависит от того, как работаешь, и вот на неё влиять можно.
     # Определение метрики: draft-arsentev-agent-run-metrics (IETF).
-    out_tok = tk.get("out", 0)
-    all_tok = sum(tk.values()) or 1
-    # ⛔ art/tk хранят ТОКЕНЫ, а не деньги — в этой сборке подписка считается в токенах.
-    # Поэтому денежную долю считаем здесь, взвешивая каждую сессию тарифом её модели.
-    out_cost = all_cost = 0.0
-    for ss in rows:
-        pr = prices(ss.get("model") or "")
-        c = ss["cost"]
-        money_out = c.get("out", 0) / 1e6 * pr[1]
-        money_in = (c.get("inp", 0) / 1e6 * pr[0] + c.get("cw5", 0) / 1e6 * pr[2]
-                    + c.get("cw1h", 0) / 1e6 * pr[3] + c.get("cr", 0) / 1e6 * pr[4])
-        out_cost += money_out
-        all_cost += money_out + money_in
-    all_cost = all_cost or 1
-    eff_tok = 100.0 * out_tok / all_tok
-    eff_cost = 100.0 * out_cost / all_cost
-    reread = 100.0 * tk.get("cr", 0) / all_tok
+    e = efficiency(rows)
+    eff_tok, eff_cost, reread = e["useful_share_tokens"], e["useful_share_cost"], e["reread_share_tokens"]
     print(f"\n=== {tr('RUN EFFICIENCY', 'КПД ПРОГОНА')} ===")
     print(f"  {tr('useful work (model output)', 'полезная работа (выход модели)'):<34} "
           f"{eff_tok:>5.2f}% {tr('of tokens', 'токенов')}")
@@ -663,6 +686,16 @@ def main():
         st = state(hours, False, hosts)
         st.pop("sessions", None)
         print(json.dumps(st, ensure_ascii=False))
+    elif a and a[0] == "mcp":
+        # Start the MCP server that ships in the same package: `uvx contextburn mcp`.
+        here = os.path.dirname(os.path.realpath(sys.argv[0]))
+        server = os.path.join(here, "contextburn-mcp")
+        os.execv(sys.executable, [sys.executable, server] + a[1:])
+    elif a and a[0] == "--efficiency":
+        hours = float(a[1]) if len(a) > 1 else 24
+        e = efficiency(state(hours, True, hosts)["sessions"])
+        e["hours"] = hours
+        print(json.dumps(e, ensure_ascii=False))
     elif a and a[0] in ("разбор", "detail", "-d"):
         cmd_detail(float(a[1]) if len(a) > 1 else 12, hosts)
     elif a and a[0] in ("окно", "window", "-w"):
