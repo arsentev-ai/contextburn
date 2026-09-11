@@ -2,3 +2,5 @@
 *.o
 /ContextBurn
 /ContextBurn.app/
+*.vsix
+node_modules/

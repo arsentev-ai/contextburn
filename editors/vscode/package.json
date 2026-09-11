@@ -1,0 +1,33 @@
+{
+  "name": "contextburn",
+  "displayName": "contextburn — run efficiency",
+  "description": "Status bar meter for Claude Code: what share of the tokens you pay for became model output, and how much was re-reading context already sent.",
+  "version": "0.1.0",
+  "publisher": "arsentev-ai",
+  "author": { "name": "Evgenii Arsentev", "url": "https://arsentev.ai" },
+  "license": "MIT",
+  "icon": "icon.png",
+  "homepage": "https://github.com/arsentev-ai/contextburn",
+  "repository": { "type": "git", "url": "https://github.com/arsentev-ai/contextburn" },
+  "bugs": { "url": "https://github.com/arsentev-ai/contextburn/issues" },
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other", "Visualization"],
+  "keywords": ["claude code", "tokens", "context window", "prompt caching", "cost"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "contextburn.detail", "title": "contextburn: Show spend breakdown" },
+      { "command": "contextburn.refresh", "title": "contextburn: Refresh" }
+    ],
+    "configuration": {
+      "title": "contextburn",
+      "properties": {
+        "contextburn.command": { "type": "string", "default": "contextburn", "description": "Path to the contextburn CLI (pip install contextburn)." },
+        "contextburn.hours": { "type": "number", "default": 5, "minimum": 1, "description": "Window, in hours, the status bar measures." },
+        "contextburn.refreshSeconds": { "type": "number", "default": 120, "minimum": 30, "description": "How often the status bar refreshes." },
+        "contextburn.metric": { "type": "string", "enum": ["cost", "tokens"], "default": "cost", "description": "Show useful work weighted by cost (default) or by raw tokens." }
+      }
+    }
+  }
+}
