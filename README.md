@@ -94,6 +94,11 @@ Or install it as a Claude Code plugin, which registers the same server:
 <!-- mcp-name: ai.arsentev/contextburn -->
 <!-- mcp-name: io.github.arsentev-ai/contextburn -->
 
+## Editor extensions
+
+- **VS Code-compatible editors (VSCodium, Cursor, Windsurf, Gitpod…)** — [Open VSX: arsentev-ai.contextburn](https://open-vsx.org/extension/arsentev-ai/contextburn). A status bar meter over the local CLI; source in [`editors/vscode`](editors/vscode).
+- **Raycast** — source in [`editors/raycast`](editors/raycast), Store submission pending.
+
 ## Menu-bar app (macOS)
 
 `app/main.swift` is a small status-bar app. It polls `contextburn --json` once a minute and shows the
