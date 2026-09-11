@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "contextburn",
+  "description": "Run efficiency for Claude Code sessions: how much of what the agent spends is actually work.",
+  "owner": {
+    "name": "Evgenii Arsentev",
+    "email": "hello@arsentev.ai"
+  },
+  "plugins": [
+    {
+      "name": "contextburn",
+      "description": "Run efficiency for Claude Code: the share of paid tokens that became model output versus re-reading context already sent, by tokens and cost-weighted. Local, no network calls.",
+      "version": "0.2.1",
+      "author": {
+        "name": "Evgenii Arsentev",
+        "email": "hello@arsentev.ai"
+      },
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}

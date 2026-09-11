@@ -1,0 +1,21 @@
+{
+  "name": "contextburn",
+  "displayName": "contextburn",
+  "version": "0.2.1",
+  "description": "Run efficiency for Claude Code: the share of paid tokens that became model output versus re-reading context already sent, by tokens and cost-weighted. Local, no network calls.",
+  "author": {
+    "name": "Evgenii Arsentev",
+    "email": "hello@arsentev.ai",
+    "url": "https://arsentev.ai"
+  },
+  "homepage": "https://arsentev.ai/research",
+  "repository": "https://github.com/arsentev-ai/contextburn",
+  "license": "MIT",
+  "keywords": ["token-usage", "context-window", "cost-efficiency", "observability", "mcp"],
+  "mcpServers": {
+    "contextburn": {
+      "command": "uvx",
+      "args": ["contextburn", "mcp"]
+    }
+  }
+}

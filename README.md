@@ -76,6 +76,13 @@ server (stdio) with two tools: `run_efficiency` returns the shares as structured
 claude mcp add contextburn -- uvx contextburn mcp
 ```
 
+Or install it as a Claude Code plugin, which registers the same server:
+
+```text
+/plugin marketplace add arsentev-ai/contextburn
+/plugin install contextburn@contextburn
+```
+
 <!-- mcp-name: ai.arsentev/contextburn -->
 <!-- mcp-name: io.github.arsentev-ai/contextburn -->
 
