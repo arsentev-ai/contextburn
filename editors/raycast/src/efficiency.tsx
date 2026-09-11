@@ -38,7 +38,9 @@ export default function Command() {
   useEffect(() => {
     execFile(command, ["--efficiency", hours], { env: { ...process.env, PATH }, timeout: 60000 }, (err, stdout) => {
       if (err) {
-        setError("The contextburn CLI was not found. Install it with `pip install contextburn`, or set its path in preferences.");
+        setError(
+          "The contextburn CLI was not found. Install it with `pip install contextburn`, or set its path in preferences.",
+        );
         return;
       }
       try {
@@ -51,7 +53,8 @@ export default function Command() {
 
   if (error) return <Detail markdown={`# contextburn\n\n${error}`} />;
   if (!data) return <Detail isLoading markdown="# contextburn\n\nReading local Claude Code transcripts…" />;
-  if (!data.tokens_total) return <Detail markdown={`# contextburn\n\nNo Claude Code sessions in the last ${hours} h.`} />;
+  if (!data.tokens_total)
+    return <Detail markdown={`# contextburn\n\nNo Claude Code sessions in the last ${hours} h.`} />;
 
   const markdown = [
     `# ${data.useful_share_cost.toFixed(1)}% of cost was useful work`,
@@ -79,7 +82,7 @@ export default function Command() {
       }
       actions={
         <ActionPanel>
-          <Action.OpenInBrowser title="Open contextburn on GitHub" url="https://github.com/arsentev-ai/contextburn" />
+          <Action.OpenInBrowser title="Open Contextburn on GitHub" url="https://github.com/arsentev-ai/contextburn" />
           <Action.CopyToClipboard title="Copy JSON" content={JSON.stringify(data, null, 2)} />
         </ActionPanel>
       }

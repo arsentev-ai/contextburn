@@ -1,7 +1,7 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "contextburn",
-  "title": "contextburn",
+  "title": "Contextburn",
   "description": "Run efficiency of your Claude Code sessions: what share of paid tokens became model output, and how much was re-reading context already sent.",
   "icon": "extension-icon.png",
   "author": "arsentev-ai",
@@ -11,7 +11,7 @@
     {
       "name": "efficiency",
       "title": "Run Efficiency",
-      "subtitle": "contextburn",
+      "subtitle": "Contextburn",
       "description": "Useful work vs. context re-reading for recent Claude Code sessions.",
       "mode": "view"
     }
