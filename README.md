@@ -18,6 +18,14 @@ cp bin/contextburn ~/bin/contextburn && chmod +x ~/bin/contextburn   # python3 o
 contextburn detail 24
 ```
 
+## Demo
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/arsentev-ai/contextburn/main/assets/readme/demo.gif" width="100%" alt="contextburn detail 72 over the 36 experiment runs: 168 sessions, useful work 1.44% of tokens, context re-reading 94.4%, cost-weighted 28.8%">
+</p>
+
+Real output over the session logs of the 36 runs behind the U-curve report — nothing else on the machine. Video with DOI: [10.5281/zenodo.22713920](https://doi.org/10.5281/zenodo.22713920). The runs themselves are open: [Hugging Face](https://huggingface.co/datasets/arsentev-ai/context-ucurve-coding-agents) (DOI 10.57967/hf/10366) · [Kaggle](https://www.kaggle.com/datasets/arsentevai/context-u-curve-of-coding-agents-36-runs) · [OSF](https://osf.io/5qtwy/) (DOI 10.17605/OSF.IO/5QTWY).
+
 ## Why two numbers
 
 <p align="center">
