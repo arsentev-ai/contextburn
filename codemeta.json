@@ -6,8 +6,14 @@
   "codeRepository": "https://github.com/arsentev-ai/contextburn",
   "url": "https://arsentev.ai",
   "license": "https://spdx.org/licenses/MIT",
-  "programmingLanguage": ["Python", "Swift"],
-  "operatingSystem": ["macOS", "Linux"],
+  "programmingLanguage": [
+    "Python",
+    "Swift"
+  ],
+  "operatingSystem": [
+    "macOS",
+    "Linux"
+  ],
   "runtimePlatform": "Python 3",
   "developmentStatus": "active",
   "keywords": [
@@ -33,5 +39,7 @@
       "name": "Clear Every Third Task: A Measured U-Curve in the Context Economy of Coding Agents",
       "identifier": "https://doi.org/10.5281/zenodo.22699668"
     }
-  ]
+  ],
+  "identifier": "https://doi.org/10.5281/zenodo.22712986",
+  "version": "0.1.1"
 }

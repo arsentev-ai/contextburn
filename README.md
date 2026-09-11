@@ -2,6 +2,8 @@
   <img src="https://raw.githubusercontent.com/arsentev-ai/contextburn/main/assets/readme/hero.svg" width="100%" alt="contextburn: real output over 24 hours — useful work 0.18% of tokens, context re-reading 98.4%, cost-weighted useful work 6.7%, one useful token costs 555 paid tokens">
 </p>
 
+<p align="center"><a href="https://doi.org/10.5281/zenodo.22712986"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22712986.svg" alt="DOI 10.5281/zenodo.22712986"></a></p>
+
 **contextburn** reads the transcripts Claude Code already writes on your machine and tells you what
 share of the tokens you paid for became model output — and how much was the agent re-reading
 context it had already sent.
@@ -80,8 +82,8 @@ Set `CONTEXTBURN_BIN=/path/to/contextburn` if the CLI is not in `~/bin` or the u
 
 ## Citing
 
-GitHub's **"Cite this repository"** button gives the reference; metadata is in
-[`CITATION.cff`](CITATION.cff).
+Software DOI: [10.5281/zenodo.22712986](https://doi.org/10.5281/zenodo.22712986). GitHub's **"Cite this repository"** button gives the
+reference; metadata is in [`CITATION.cff`](CITATION.cff).
 
 ## Author
 
