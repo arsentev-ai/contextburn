@@ -4,7 +4,7 @@
   "title": "contextburn",
   "description": "Run efficiency of your Claude Code sessions: what share of paid tokens became model output, and how much was re-reading context already sent.",
   "icon": "extension-icon.png",
-  "author": "arsentev",
+  "author": "arsentev-ai",
   "categories": ["Developer Tools", "Productivity"],
   "license": "MIT",
   "commands": [
