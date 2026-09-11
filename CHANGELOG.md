@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] — 2026-09-11
+
+### Changed
+- MCP Registry name is now `ai.arsentev/contextburn`, verified through the author's domain.
+- README and citation metadata point to the concept DOI, which always resolves to the latest
+  version: 10.5281/zenodo.22712985.
+
 ## [0.2.0] — 2026-09-11
 
 ### Added

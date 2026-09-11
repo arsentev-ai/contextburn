@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/arsentev-ai/contextburn/main/assets/readme/hero.svg" width="100%" alt="contextburn: real output over 24 hours — useful work 0.18% of tokens, context re-reading 98.4%, cost-weighted useful work 6.7%, one useful token costs 555 paid tokens">
 </p>
 
-<p align="center"><a href="https://doi.org/10.5281/zenodo.22712986"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22712986.svg" alt="DOI 10.5281/zenodo.22712986"></a></p>
+<p align="center"><a href="https://doi.org/10.5281/zenodo.22712985"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22712985.svg" alt="DOI 10.5281/zenodo.22712985"></a></p>
 
 **contextburn** reads the transcripts Claude Code already writes on your machine and tells you what
 share of the tokens you paid for became model output — and how much was the agent re-reading
@@ -76,6 +76,7 @@ server (stdio) with two tools: `run_efficiency` returns the shares as structured
 claude mcp add contextburn -- uvx contextburn mcp
 ```
 
+<!-- mcp-name: ai.arsentev/contextburn -->
 <!-- mcp-name: io.github.arsentev-ai/contextburn -->
 
 ## Menu-bar app (macOS)
@@ -96,7 +97,7 @@ Set `CONTEXTBURN_BIN=/path/to/contextburn` if the CLI is not in `~/bin` or the u
 
 ## Citing
 
-Software DOI: [10.5281/zenodo.22712986](https://doi.org/10.5281/zenodo.22712986). GitHub's **"Cite this repository"** button gives the
+Software DOI (all versions): [10.5281/zenodo.22712985](https://doi.org/10.5281/zenodo.22712985). GitHub's **"Cite this repository"** button gives the
 reference; metadata is in [`CITATION.cff`](CITATION.cff).
 
 ## Author

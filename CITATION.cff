@@ -7,8 +7,8 @@ authors:
     given-names: Evgenii
     orcid: "https://orcid.org/0000-0002-9120-7298"
     website: "https://arsentev.ai"
-doi: "10.5281/zenodo.22712986"
-version: "0.2.0"
+doi: "10.5281/zenodo.22712985"
+version: "0.2.1"
 repository-code: "https://github.com/arsentev-ai/contextburn"
 url: "https://arsentev.ai"
 abstract: >-
