@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="contextburn: real output over 24 hours — useful work 0.18% of tokens, context re-reading 98.4%, cost-weighted useful work 6.7%, one useful token costs 555 paid tokens">
+  <img src="https://raw.githubusercontent.com/arsentev-ai/contextburn/main/assets/readme/hero.svg" width="100%" alt="contextburn: real output over 24 hours — useful work 0.18% of tokens, context re-reading 98.4%, cost-weighted useful work 6.7%, one useful token costs 555 paid tokens">
 </p>
 
 **contextburn** reads the transcripts Claude Code already writes on your machine and tells you what
@@ -19,7 +19,7 @@ contextburn detail 24
 ## Why two numbers
 
 <p align="center">
-  <img src="./assets/readme/two-numbers.svg" width="100%" alt="Same 12 tasks, one long session versus twelve short, 3 runs each: token efficiency 1.11% vs 1.12%, no difference; cost-weighted efficiency 31.6% vs 24.6%, seven points apart">
+  <img src="https://raw.githubusercontent.com/arsentev-ai/contextburn/main/assets/readme/two-numbers.svg" width="100%" alt="Same 12 tasks, one long session versus twelve short, 3 runs each: token efficiency 1.11% vs 1.12%, no difference; cost-weighted efficiency 31.6% vs 24.6%, seven points apart">
 </p>
 
 - **By tokens** the share barely moves. Every agent step resends the accumulated context, so
