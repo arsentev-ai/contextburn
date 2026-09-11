@@ -2,6 +2,23 @@
 // с интерактивным почасовым графиком. Сутки считаются от 6:00 (TOKMON_DAY_START).
 import Cocoa
 
+// Interface language: English by default. Russian via TOKMON_LANG=ru, or a file
+// ~/.config/tokmon/lang containing "ru". The app is normally launched from Finder, where
+// environment variables never reach it, so the file is the switch that actually works.
+let TOKMON_LANG: String = {
+    if let v = ProcessInfo.processInfo.environment["TOKMON_LANG"], !v.isEmpty {
+        return String(v.lowercased().prefix(2))
+    }
+    let path = NSString(string: "~/.config/tokmon/lang").expandingTildeInPath
+    if let raw = try? String(contentsOfFile: path, encoding: .utf8) {
+        return String(raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().prefix(2))
+    }
+    return "en"
+}()
+
+func tr(_ en: String, _ ru: String) -> String { TOKMON_LANG == "ru" ? ru : en }
+
+
 // Путь к CLI. Переопределяется переменной TOKMON_BIN, иначе ищем в обычных местах.
 let TOKMON = ProcessInfo.processInfo.environment["TOKMON_BIN"]
     ?? ["\(NSHomeDirectory())/bin/tokmon", "/usr/local/bin/tokmon", "/opt/homebrew/bin/tokmon"]
@@ -395,11 +412,11 @@ final class Controller: NSObject, NSApplicationDelegate {
 
         let head = Text()
 
-        let status = hard ? (hot >= 30 ? "трэш \(Int(hot)) мин подряд" : "всплеск")
-                          : (soft ? "повышенный" : "спокойно")
-        head.add("\(mark) \(fmt(dayTotal))  за сутки с \(dayFrom)", size: 15, color: accent,
+        let status = hard ? (hot >= 30 ? tr("burning \(Int(hot)) min straight", "трэш \(Int(hot)) мин подряд") : tr("spike", "всплеск"))
+                          : (soft ? tr("elevated", "повышенный") : tr("calm", "спокойно"))
+        head.add("\(mark) \(fmt(dayTotal))  " + tr("today since \(dayFrom)", "за сутки с \(dayFrom)"), size: 15, color: accent,
                  mono: false, weight: .bold, after: 1)
-        head.add("сейчас \(fmt(w1))/час · \(status)", size: 10.5,
+        head.add(tr("now \(fmt(w1))/h · \(status)", "сейчас \(fmt(w1))/час · \(status)"), size: 10.5,
                  color: NSColor(white: 1, alpha: 0.5), mono: false, after: 0)
 
         let t = Text()
@@ -409,37 +426,37 @@ final class Controller: NSObject, NSApplicationDelegate {
             let hr = hoursArr[sel]
             let hh = labels[sel]
             let tot = hr["total"] as? Double ?? 0
-            t.add("выбран час \(hh):00–\(hh):59   \(fmt(tot))", size: 12.5,
+            t.add(tr("hour \(hh):00–\(hh):59   \(fmt(tot))", "выбран час \(hh):00–\(hh):59   \(fmt(tot))"), size: 12.5,
                   color: NSColor(red: 1, green: 0.82, blue: 0.35, alpha: 1), weight: .bold, after: 6)
             let hs = hr["hosts"] as? [String: Double] ?? [:]
             let mxh = max(hs.values.max() ?? 1, 1)
-            t.section("машины в этот час")
-            if hs.isEmpty { t.add("  тихо", color: NSColor(white: 1, alpha: 0.4)) }
+            t.section(tr("machines this hour", "машины в этот час"))
+            if hs.isEmpty { t.add(tr("  quiet", "  тихо"), color: NSColor(white: 1, alpha: 0.4)) }
             for (h, v) in hs.sorted(by: { $0.value > $1.value }) {
                 t.add("\(pad(h, 11))\(lpad(fmt(v), 7))  \(String(repeating: "▇", count: max(1, Int((v / mxh) * 14))))",
                       color: .white, after: 1)
             }
             t.s.append(NSAttributedString(string: "\n"))
-            t.section("задачи в этот час")
+            t.section(tr("tasks this hour", "задачи в этот час"))
             for x in (hr["top"] as? [[String: Any]] ?? []).prefix(5) {
-                let nm = ((x["sub"] as? Bool == true) ? "суб·" : "") + ((x["task"] as? String) ?? "?")
+                let nm = ((x["sub"] as? Bool == true) ? tr("sub-", "суб·") : "") + ((x["task"] as? String) ?? "?")
                 t.add("\(pad((x["host"] as? String) ?? "?", 9))\(pad(nm, 23))\(lpad(fmt(x["v"] as? Double ?? 0), 7))",
                       color: NSColor(white: 1, alpha: 0.9), after: 1)
             }
-            t.add("клик по столбцу ещё раз — показать все сутки", size: 9.5,
+            t.add(tr("click the bar again to show the whole day", "клик по столбцу ещё раз — показать все сутки"), size: 9.5,
                   color: NSColor(white: 1, alpha: 0.35), mono: false, after: 0)
             hud.render(compact: false, header: head, body: t,
                        values: state["day_series"] as? [Double] ?? [],
-                       labels: labels, caption: "выбран \(hh):00 · клик по столбцу снимает выбор")
+                       labels: labels, caption: tr("hour \(hh):00 · click the bar to clear", "выбран \(hh):00 · клик по столбцу снимает выбор"))
             hud.compactWasBefore = false
             buildMenu(w1: w1, day: dayTotal, from: dayFrom)
             return
         }
         let sp = state["day_split"] as? [String: Double] ?? [:]
-        t.add("новых \(fmt(sp["new"] ?? 0))  +  перечитано \(fmt(sp["reread"] ?? 0))  (тот же контекст заново)",
+        t.add(tr("new \(fmt(sp["new"] ?? 0))  +  re-read \(fmt(sp["reread"] ?? 0))  (same context again)", "новых \(fmt(sp["new"] ?? 0))  +  перечитано \(fmt(sp["reread"] ?? 0))  (тот же контекст заново)"),
               size: 10, color: NSColor(white: 1, alpha: 0.45), after: 7)
 
-        t.section("машины · сутки с \(dayFrom)")
+        t.section(tr("machines · today since \(dayFrom)", "машины · сутки с \(dayFrom)"))
         let hd = state["day_hosts"] as? [String: Double] ?? [:]
         let mx = max(hd.values.max() ?? 1, 1)
         var idle: [String] = []
@@ -449,25 +466,25 @@ final class Controller: NSObject, NSApplicationDelegate {
                   color: .white, after: 1)
         }
         if !idle.isEmpty {
-            t.add("тихо: " + idle.joined(separator: ", "), size: 10,
+            t.add(tr("quiet: ", "тихо: ") + idle.joined(separator: ", "), size: 10,
                   color: NSColor(white: 1, alpha: 0.32), after: 1)
         }
         t.s.append(NSAttributedString(string: "\n"))
 
         let accs = state["day_accounts"] as? [String: Double] ?? [:]
         if accs.count > 1 {
-            t.section("подписки · сутки")
+            t.section(tr("subscriptions · today", "подписки · сутки"))
             for (a, v) in accs.sorted(by: { $0.value > $1.value }) where v > 0 {
                 t.add("\(pad(a, 17))\(lpad(fmt(v), 7))", color: NSColor(white: 1, alpha: 0.88), after: 1)
             }
             t.s.append(NSAttributedString(string: "\n"))
         }
 
-        t.section("топ задач · сутки")
+        t.section(tr("top tasks · today", "топ задач · сутки"))
         let top = state["day_top"] as? [[String: Any]] ?? []
-        if top.isEmpty { t.add("  пусто", color: NSColor(white: 1, alpha: 0.4)) }
+        if top.isEmpty { t.add(tr("  empty", "  пусто"), color: NSColor(white: 1, alpha: 0.4)) }
         for x in top.prefix(4) {
-            let nm = ((x["sub"] as? Bool == true) ? "суб·" : "") + ((x["task"] as? String) ?? "?")
+            let nm = ((x["sub"] as? Bool == true) ? tr("sub-", "суб·") : "") + ((x["task"] as? String) ?? "?")
             let ctx = x["ctx"] as? Double ?? 0
             let c: NSColor = ctx > 150_000 ? NSColor(red: 1, green: 0.5, blue: 0.45, alpha: 1)
                                            : NSColor(white: 1, alpha: 0.88)
@@ -478,24 +495,24 @@ final class Controller: NSObject, NSApplicationDelegate {
         hud.render(compact: false, header: head, body: t,
                    values: state["day_series"] as? [Double] ?? [],
                    labels: state["day_labels"] as? [String] ?? [],
-                   caption: "по часам с \(dayFrom) · наведи курсор")
+                   caption: tr("by hour since \(dayFrom) · hover for detail", "по часам с \(dayFrom) · наведи курсор"))
         hud.compactWasBefore = false
         buildMenu(w1: w1, day: dayTotal, from: dayFrom)
     }
 
     func buildMenu(w1: Double, day: Double, from: String) {
         let m = NSMenu(); m.autoenablesItems = false
-        mhead(m, "сутки с \(from): \(fmt(day))   ·   за час \(fmt(w1))")
+        mhead(m, tr("today since \(from): \(fmt(day))   ·   last hour \(fmt(w1))", "сутки с \(from): \(fmt(day))   ·   за час \(fmt(w1))"))
         if let e = state["errors"] as? [String: String], !e.isEmpty {
             for (h, v) in e { mhead(m, "⛔ \(h): \(v)") }
         }
         m.addItem(.separator())
-        madd(m, expanded ? "Закрыть панель" : "Открыть панель", #selector(toggleSize), "e")
-        madd(m, hudOn ? "Спрятать всё" : "Показать", #selector(toggleHUD), "h")
-        madd(m, "Вернуть полоску и панель на место", #selector(cornerHUD), "c")
-        madd(m, "Обновить сейчас", #selector(refresh), "r")
-        madd(m, "Подробный разбор причин…", #selector(openReport), "d")
-        madd(m, "Выход", #selector(quit), "q")
+        madd(m, expanded ? tr("Close panel", "Закрыть панель") : tr("Open panel", "Открыть панель"), #selector(toggleSize), "e")
+        madd(m, hudOn ? tr("Hide all", "Спрятать всё") : tr("Show", "Показать"), #selector(toggleHUD), "h")
+        madd(m, tr("Reset strip and panel position", "Вернуть полоску и панель на место"), #selector(cornerHUD), "c")
+        madd(m, tr("Refresh now", "Обновить сейчас"), #selector(refresh), "r")
+        madd(m, tr("Detailed breakdown…", "Подробный разбор причин…"), #selector(openReport), "d")
+        madd(m, tr("Quit", "Выход"), #selector(quit), "q")
         item.menu = m
     }
     func mhead(_ m: NSMenu, _ s: String) {
@@ -524,8 +541,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     }
     @objc func openReport() {
         DispatchQueue.global(qos: .utility).async {
-            let out = self.shell(TOKMON, ["разбор", "24"])
-            let path = NSTemporaryDirectory() + "tokmon-разбор.txt"
+            let out = self.shell(TOKMON, ["detail", "24"])
+            let path = NSTemporaryDirectory() + "tokmon-detail.txt"
             try? out.write(toFile: path, atomically: true, encoding: .utf8)
             let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             p.arguments = ["-t", path]; try? p.run()

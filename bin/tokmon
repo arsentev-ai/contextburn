@@ -1,18 +1,42 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-tokmon — на что уходят токены: по сессиям и ПРИЧИНАМ.
+tokmon — where your agent tokens actually go: by session and by REASON.
 
-  tokmon                  кто жжёт прямо сейчас
-  tokmon разбор [часов]   подробный разбор: сессии + что именно раздуло контекст
-  tokmon окно             текущее 5-часовое окно подписки
-  tokmon --json           состояние в JSON (для счётчика в строке меню)
-  tokmon --probe <часов> [--detail]   зонд: сырой JSON по этой машине
+  tokmon                     who is burning tokens right now
+  tokmon detail [hours]      full breakdown: sessions + what inflated the context
+  tokmon window              current 5-hour subscription window
+  tokmon --json              state as JSON (for the menubar counter)
+  tokmon --probe <hours> [--detail]   raw JSON probe for this machine
 
-Считает ТОКЕНЫ (1k / 500k / 1.4kk / 3.6kkk) — то, что тратит подписка.
-Главное, что видно: расход = контекст × число ходов, а не «сложность вопроса».
+Counts TOKENS (1k / 500k / 1.4kk / 3.6kkk) — what the subscription actually spends.
+The point it makes visible: spend = context x turns, not "how hard the question was".
+
+Interface language: English by default. Russian: TOKMON_LANG=ru, or put "ru"
+into ~/.config/tokmon/lang (the menubar app reads the same file).
+Russian command aliases also work: разбор, окно, помощь.
 """
 import json, os, sys, glob, time, calendar, subprocess, threading, collections
+
+# ⛔ Interface is English by default: the tool is published internationally.
+# Russian stays available for the author's own machine via TOKMON_LANG=ru.
+def _lang():
+    v = os.environ.get("TOKMON_LANG")
+    if v:
+        return v.strip().lower()[:2]
+    # Same switch the menubar app reads: it is launched from Finder, where env vars never arrive.
+    try:
+        with open(os.path.expanduser("~/.config/tokmon/lang"), encoding="utf-8") as fh:
+            return fh.read().strip().lower()[:2] or "en"
+    except OSError:
+        return "en"
+
+LANG = _lang()
+
+def tr(en, ru):
+    """Pick a user-facing string. Both variants live at the call site on purpose:
+    a translation table with keys drifts out of sync the moment one side is edited."""
+    return ru if LANG == "ru" else en
 
 # ── тарифы $/1M токенов: (вход, выход, запись кеша 5м, запись кеша 1ч, чтение кеша)
 PRICES = [
@@ -155,12 +179,12 @@ def parse_file(path, cut, detail):
                     if not isinstance(b, dict): continue
                     if b.get("type") == "tool_result":
                         entries.append([turns, blob_tokens(b.get("content")),
-                                        tools.get(b.get("tool_use_id"), "ответ инструмента")])
+                                        tools.get(b.get("tool_use_id"), tr("tool result", "ответ инструмента"))])
                     elif b.get("type") == "text":
                         n = len(b.get("text") or "") / 4.0
-                        if n > 1000: entries.append([turns, n, "текст от пользователя/системы"])
+                        if n > 1000: entries.append([turns, n, tr("text from user/system", "текст от пользователя/системы")])
                     elif b.get("type") == "image":
-                        entries.append([turns, 1600, "картинка"])
+                        entries.append([turns, 1600, "image"])
 
             if not has_usage:
                 continue
@@ -236,15 +260,15 @@ IMG_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".pdf")
 def category(what):
     n = what.split("(")[0].strip()
     low = what.lower()
-    if n == "картинка" or any(e in low for e in IMG_EXT): return "картинки и скриншоты"
-    if n == "Read": return "чтение файлов"
-    if n == "Bash": return "вывод команд"
-    if n in ("Grep", "Glob", "Explore"): return "поиск по файлам"
-    if n in ("Task", "Agent", "SendMessage"): return "отчёты субагентов"
-    if n in ("WebFetch", "WebSearch"): return "веб-страницы"
-    if n.startswith("mcp__"): return "MCP-инструменты"
-    if n.startswith("текст"): return "текст от пользователя"
-    return n or "прочее"
+    if n in ("image", "картинка") or any(e in low for e in IMG_EXT): return tr("images and screenshots", "картинки и скриншоты")
+    if n == "Read": return tr("file reads", "чтение файлов")
+    if n == "Bash": return tr("command output", "вывод команд")
+    if n in ("Grep", "Glob", "Explore"): return tr("file search", "поиск по файлам")
+    if n in ("Task", "Agent", "SendMessage"): return tr("subagent reports", "отчёты субагентов")
+    if n in ("WebFetch", "WebSearch"): return tr("web pages", "веб-страницы")
+    if n.startswith("mcp__"): return tr("MCP tools", "MCP-инструменты")
+    if n.startswith("text") or n.startswith("текст"): return tr("user text", "текст от пользователя")
+    return n or tr("other", "прочее")
 
 def group_key(what):
     n = what.split("(")[0].strip()
@@ -273,7 +297,7 @@ def blob_tokens(c):
     return len(json.dumps(c, ensure_ascii=False)) / 4.0
 
 def tool_label(b):
-    name = b.get("name") or "инструмент"
+    name = b.get("name") or tr("tool", "инструмент")
     inp = b.get("input") or {}
     hint = ""
     if isinstance(inp, dict):
@@ -290,7 +314,7 @@ def probe(host, hours, detail):
         r = subprocess.run(["python3", "-"] + args, input=src, capture_output=True, text=True, timeout=180)
         line = [l for l in r.stdout.splitlines() if l.startswith("{")]
         if not line:
-            err = (r.stderr.strip().splitlines() or ["нет ответа"])[-1][:70]
+            err = (r.stderr.strip().splitlines() or [tr("no response", "нет ответа")])[-1][:70]
             return dict(err=err, sessions=[])
         return json.loads(line[-1])
     except Exception as e:
@@ -320,7 +344,7 @@ def flatten(data):
 
 def who(s):
     n = s.get("name") or s.get("label") or os.path.basename(s.get("cwd") or "") or s["sid"][:8]
-    return ("суб·" if s.get("sub") else "") + n
+    return (tr("sub-", "суб·") if s.get("sub") else "") + n
 
 def rate(rows, minutes):
     """$/час по корзинам за последние N минут."""
@@ -482,11 +506,11 @@ def state(hours=8, detail=False, hosts=None):
 def cmd_now(hosts=None):
     st = state(26, False, hosts)
     r = st["rate15"]
-    flag = "⛔ ТРЭШ" if r > ALARM else ("⚠ высоко" if r > WARN else "норма")
-    print(f"═══ РАСХОД СЕЙЧАС · {time.strftime('%H:%M:%S')} ═══")
-    print(f"скорость: {money(r)} токенов/час  ({flag})     за час {money(st['w1'])} · за 5 ч {money(st['w5'])} · за сутки {money(st['w24'])}")
+    flag = tr("BURNING", "ТРЭШ") if r > ALARM else (tr("high", "высоко") if r > WARN else tr("normal", "норма"))
+    print(f"=== {tr('SPEND RIGHT NOW', 'РАСХОД СЕЙЧАС')} · {time.strftime('%H:%M:%S')} ===")
+    print(f"{tr('rate', 'скорость')}: {money(r)} {tr('tokens/h', 'токенов/час')}  ({flag})     {tr('last hour', 'за час')} {money(st['w1'])} · {tr('5h', 'за 5 ч')} {money(st['w5'])} · {tr('24h', 'за сутки')} {money(st['w24'])}")
     for h, e in st["errors"].items(): print(f"  ⛔ {h}: {e}")
-    print(f"\n{'машина':<9} {'кто':<26} {'модель':<12} {'контекст':>9} {'ходов':>6} {'за час':>8} {'ход стоит':>10}")
+    print(f"\n{tr('machine','машина'):<9} {tr('who','кто'):<26} {tr('model','модель'):<12} {tr('context','контекст'):>9} {tr('turns','ходов'):>6} {tr('per hour','за час'):>8} {tr('per turn','ход стоит'):>10}")
     lo = int((time.time() - 3600) // BUCKET)
     for s in st["live"]:
         hr = sum(c for b, c in s.get("buckets", {}).items() if int(b) >= lo)
@@ -494,22 +518,23 @@ def cmd_now(hosts=None):
         warn = "⛔" if s["ctx"] > 150000 else ("⚠" if s["ctx"] > 100000 else " ")
         print(f"{s['host']:<9} {who(s)[:26]:<26} {s['model'][:12]:<12} "
               f"{toks(s['ctx']):>7}{warn} {s['turns']:>6} {money(hr):>8} {money(nxt):>10}")
-    if not st["live"]: print("  — активных сессий нет")
-    print("\n«ход стоит» — сколько токенов уйдёт на ОДИН следующий ответ: весь контекст читается заново.")
-    print("Подробно, кто и на чём сжёг:  tokmon разбор 12")
+    if not st["live"]: print(tr("  - no active sessions", "  — активных сессий нет"))
+    print(tr("\n\"per turn\" is what ONE next answer will cost: the whole context is read again.",
+        "\n«ход стоит» — сколько токенов уйдёт на ОДИН следующий ответ: весь контекст читается заново."))
+    print(tr("Full breakdown:  tokmon detail 12", "Подробно, кто и на чём сжёг:  tokmon разбор 12"))
 
 def cmd_window(hosts=None):
     st = state(6, False, hosts)
     rows = st["sessions"]
-    print(f"═══ ТЕКУЩЕЕ 5-ЧАСОВОЕ ОКНО · {time.strftime('%H:%M')} ═══\n")
-    print(f"сожжено за 5 часов: {money(st['w5'])} токенов    скорость: {money(st['rate15'])}/час")
+    print(f"=== {tr('CURRENT 5-HOUR WINDOW', 'ТЕКУЩЕЕ 5-ЧАСОВОЕ ОКНО')} · {time.strftime('%H:%M')} ===\n")
+    print(f"{tr('burned in 5 hours', 'сожжено за 5 часов')}: {money(st['w5'])}    {tr('rate', 'скорость')}: {money(st['rate15'])}/h")
     lo = int((time.time() - 5 * 3600) // BUCKET)
     per = []
     for s in rows:
         v = sum(c for b, c in s.get("buckets", {}).items() if int(b) >= lo)
         if v > 1000: per.append((v, s))
     per.sort(key=lambda x: -x[0])
-    print(f"\n{'доля':>6} {'машина':<9} {'кто':<30} {'ходов':>6} {'за 5 ч':>8}")
+    print(f"\n{tr('share','доля'):>6} {tr('machine','машина'):<9} {tr('who','кто'):<30} {tr('turns','ходов'):>6} {tr('per 5h','за 5 ч'):>8}")
     tot = sum(v for v, _ in per) or 1
     for v, s in per[:12]:
         print(f"{100*v/tot:>5.0f}% {s['host']:<9} {who(s)[:30]:<30} {s['turns']:>6} {money(v):>8}")
@@ -518,31 +543,71 @@ def cmd_detail(hours=12, hosts=None):
     st = state(hours, True, hosts)
     rows = sorted(st["sessions"], key=lambda s: -s["total"])
     total = sum(s["total"] for s in rows)
-    print(f"═══ РАЗБОР РАСХОДА за {hours} ч · {time.strftime('%d.%m %H:%M')} ═══\n")
-    for h, e in st["errors"].items(): print(f"  ⛔ {h} недоступна: {e}")
+    print(f"=== {tr('SPEND BREAKDOWN', 'РАЗБОР РАСХОДА')}, {hours}h · {time.strftime('%d.%m %H:%M')} ===\n")
+    for h, e in st["errors"].items(): print(f"  ! {h} {tr('unreachable', 'недоступна')}: {e}")
 
     # ── по машинам
-    print(f"ВСЕГО {money(total)} токенов      по машинам:")
+    print(f"{tr('TOTAL', 'ВСЕГО')} {money(total)} {tr('tokens', 'токенов')}")
     for h, v in sorted(st["hosts"].items(), key=lambda x: -x[1]):
         n = len([s for s in rows if s["host"] == h])
         bar = "█" * int(24 * v / (total or 1))
-        print(f"  {h:<10} {money(v):>8}  {n:>3} сессий  {bar}")
+        print(f"  {h:<10} {money(v):>8}  {n:>3} {tr('sessions', 'сессий')}  {bar}")
 
     # ── по статьям расхода
     art = collections.Counter()
     tk = collections.Counter()
     for s in rows:
         art.update(s["cost"]); tk.update(s["tok"])
-    NAMES = dict(cw1h="запись кеша (TTL 1 час)", cw5="запись кеша (TTL 5 мин)",
-                 cr="перечитывание контекста", out="ответы модели (выход)",
-                 inp="вход без кеша")
-    print(f"\nНА ЧТО ИМЕННО:")
+    NAMES = dict(cw1h=tr("cache write (1h TTL)", "запись кеша (TTL 1 час)"),
+                 cw5=tr("cache write (5m TTL)", "запись кеша (TTL 5 мин)"),
+                 cr=tr("context re-reading", "перечитывание контекста"),
+                 out=tr("model output", "ответы модели (выход)"),
+                 inp=tr("input, uncached", "вход без кеша"))
+    # ══════════════════════════════════════════════════════════════════
+    # ⛔ ГЛАВНАЯ МЕТРИКА. Счётчиков токенов много, и все отвечают на вопрос
+    # «сколько потрачено». Этот отвечает на другой: СКОЛЬКО ИЗ ПОТРАЧЕННОГО
+    # БЫЛО РАБОТОЙ. Величина нормированная, поэтому её можно сравнивать между
+    # прогонами, моделями и стилями работы — абсолютные счётчики так не умеют.
+    #
+    # Две доли намеренно разные, и разница в этом весь смысл:
+    #   по ТОКЕНАМ  — почти не двигается, это природа агентов, повлиять нельзя;
+    #   по ДЕНЬГАМ  — зависит от того, как работаешь, и вот на неё влиять можно.
+    # Определение метрики: draft-arsentev-agent-run-metrics (IETF).
+    out_tok = tk.get("out", 0)
+    all_tok = sum(tk.values()) or 1
+    # ⛔ art/tk хранят ТОКЕНЫ, а не деньги — в этой сборке подписка считается в токенах.
+    # Поэтому денежную долю считаем здесь, взвешивая каждую сессию тарифом её модели.
+    out_cost = all_cost = 0.0
+    for ss in rows:
+        pr = prices(ss.get("model") or "")
+        c = ss["cost"]
+        money_out = c.get("out", 0) / 1e6 * pr[1]
+        money_in = (c.get("inp", 0) / 1e6 * pr[0] + c.get("cw5", 0) / 1e6 * pr[2]
+                    + c.get("cw1h", 0) / 1e6 * pr[3] + c.get("cr", 0) / 1e6 * pr[4])
+        out_cost += money_out
+        all_cost += money_out + money_in
+    all_cost = all_cost or 1
+    eff_tok = 100.0 * out_tok / all_tok
+    eff_cost = 100.0 * out_cost / all_cost
+    reread = 100.0 * tk.get("cr", 0) / all_tok
+    print(f"\n=== {tr('RUN EFFICIENCY', 'КПД ПРОГОНА')} ===")
+    print(f"  {tr('useful work (model output)', 'полезная работа (выход модели)'):<34} "
+          f"{eff_tok:>5.2f}% {tr('of tokens', 'токенов')}")
+    print(f"  {tr('context re-reading', 'перечитывание контекста'):<34} "
+          f"{reread:>5.1f}% {tr('of tokens', 'токенов')}")
+    print(f"  {tr('useful work, cost-weighted', 'полезная работа, взвешенная по цене'):<34} "
+          f"{eff_cost:>5.1f}%")
+    if eff_tok:
+        print(f"  {tr('one useful token costs', 'один полезный токен стоит'):<34} "
+              f"{1/(eff_tok/100):>5.0f} {tr('paid tokens', 'оплаченных')}")
+
+    print(f"\n{tr('WHERE EXACTLY', 'НА ЧТО ИМЕННО')}:")
     for k, v in art.most_common():
         share = 100 * v / (total or 1)
         print(f"  {NAMES.get(k,k):<34} {money(v):>9}  {share:>4.0f}%")
 
     # ── сессии
-    print(f"\n{'машина':<9} {'кто':<28} {'модель':<11} {'ходов':>6} {'пик ctx':>8} {'сожгла':>8}")
+    print(f"\n{tr('machine','машина'):<9} {tr('who','кто'):<28} {tr('model','модель'):<11} {tr('turns','ходов'):>6} {tr('peak ctx','пик ctx'):>8} {tr('burned','сожгла'):>8}")
     for s in rows[:15]:
         if s["total"] < 1000: continue
         print(f"{s['host']:<9} {who(s)[:28]:<28} {s['model'][:11]:<11} {s['turns']:>6} "
@@ -559,26 +624,26 @@ def cmd_detail(hours=12, hosts=None):
             t["cost"] += g["cost"]; t["n"] += g["n"]; t["hosts"].add(s["host"])
     rest = max(0.0, total - ident)
 
-    print(f"\n═══ ПРИЧИНЫ: чем набит контекст, за который платят каждый ход ═══")
-    print(f"{'статья':<26} {'токенов':>9} {'доля':>6}")
+    print(f"\n=== {tr('REASONS: what fills the context you pay for every turn', 'ПРИЧИНЫ: чем набит контекст, за который платят каждый ход')} ===")
+    print(f"{tr('item','статья'):<26} {tr('tokens','токенов'):>9} {tr('share','доля'):>6}")
     for k, v in cats.most_common(10):
         print(f"  {k:<24} {money(v):>9} {100*v/(total or 1):>5.0f}%")
-    print(f"  {'переписка, промпт, ответы':<24} {money(rest):>8} {100*rest/(total or 1):>5.0f}%")
+    print(f"  {tr('chat, prompt, answers', 'переписка, промпт, ответы'):<24} {money(rest):>8} {100*rest/(total or 1):>5.0f}%")
 
-    print(f"\nКОНКРЕТНО (что чаще всего лежит в контексте):")
-    print(f"{'сожгло':>8} {'раз':>5}  что")
+    print(f"\n{tr('SPECIFICALLY (what sits in the context most often)', 'КОНКРЕТНО (что чаще всего лежит в контексте)')}:")
+    print(f"{tr('burned','сожгло'):>8} {tr('times','раз'):>5}  {tr('what','что')}")
     for k, g in sorted(groups.items(), key=lambda x: -x[1]["cost"])[:15]:
         print(f"{money(g['cost']):>8} {g['n']:>5}  {k[:46]:<46} [{','.join(sorted(g['hosts']))[:18]}]")
 
     # ── цена длины сессии
-    print(f"\n═══ ЦЕНА ДЛИНЫ: сколько стоит просто НЕ закрывать сессию ═══")
-    print(f"{'машина':<9} {'кто':<26} {'ходов':>6} {'ср.ctx':>7} {'сожгла':>8}  следующий ход")
+    print(f"\n=== {tr('COST OF LENGTH: what simply NOT closing a session costs', 'ЦЕНА ДЛИНЫ: сколько стоит просто НЕ закрывать сессию')} ===")
+    print(f"{tr('machine','машина'):<9} {tr('who','кто'):<26} {tr('turns','ходов'):>6} {tr('avg ctx','ср.ctx'):>7} {tr('burned','сожгла'):>8}  {tr('next turn', 'следующий ход')}")
     for s in rows[:8]:
         if s["turns"] < 20: continue
         nxt = s["ctx"]
         avg = s["tok"].get("cr", 0) / max(1, s["turns"])
         print(f"{s['host']:<9} {who(s)[:26]:<26} {s['turns']:>6} {toks(avg):>7} {money(s['total']):>8}"
-              f"       {money(nxt)} за ход")
+              f"       {money(nxt)} {tr('per turn','за ход')}")
 
 def main():
     a = sys.argv[1:]

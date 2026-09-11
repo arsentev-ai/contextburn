@@ -1,36 +1,55 @@
 # tokmon
 
-**Where your Claude Code tokens actually go — by machine, by session, and by *reason*.**
+**How much of what your coding agent spends is actually work.**
 
-Your subscription burns tokens, but the usual question — "which question was expensive?" — is the
-wrong one. Spend is **context × turns**: every turn re-reads everything already in the window, so a
-token that entered the context on turn 15 of 116 is paid for 101 times. `tokmon` makes that visible.
+Token counters answer *"how much did I spend?"* — there are plenty of them. `tokmon` answers a
+different question: **what share of the paid tokens became model output, and what share was the
+agent re-reading context it had already sent?** That share is a normalised number, so it can be
+compared across sessions, models, tools and ways of working. An absolute counter cannot do that.
 
 ```
-$ tokmon
-today  1.07kkk tokens   ·  burn rate 64kk/h
+$ tokmon detail 24
+=== SPEND BREAKDOWN, 24.0h · 11.09 19:10 ===
 
-$ tokmon разбор 24
-session                          tokens    what inflated the context
-my-site · refactor              312kk     file re-reads (47) · long tool output (12)
-my-app · release-prep           241kk     subagent transcripts (8)
+TOTAL 3.1kkk tokens
+
+=== RUN EFFICIENCY ===
+  useful work (model output)          0.18% of tokens
+  context re-reading                  98.4% of tokens
+  useful work, cost-weighted           6.7%
+  one useful token costs               555 paid tokens
 ```
 
-## Why it exists
+## Why two efficiency numbers
 
-Long sessions are the expensive ones — not hard ones. A 20-turn chat that keeps a 200k-token
-context costs more than fifty short, focused chats. Once you can see that, the fix is boring and
-effective: close the topic, clear the context, start the next task in a fresh session.
+They are reported separately on purpose, because they measure different things.
+
+- **By tokens** the share barely moves. It is a property of how agents work: every step resends
+  the accumulated context, so re-reading dominates whatever you do.
+- **Cost-weighted** the share does move, because cached reads are priced far below fresh input
+  and output. It depends on how you run sessions — and that part is under your control.
+
+In a controlled comparison of the same 12 programming tasks run as one long session versus twelve
+short ones (3 runs each, all tests passing), token efficiency was **1.11 % vs 1.12 %** — no
+difference — while cost-weighted efficiency was **31.6 % vs 24.6 %**. The token share describes the
+agent; the cost share describes the operator. A plain counter shows neither.
+
+The underlying experiment, with dataset and analysis scripts:
+[Clear Every Third Task: A Measured U-Curve in the Context Economy of Coding Agents](https://doi.org/10.5281/zenodo.22699668).
 
 ## What it reads
 
 Local Claude Code transcripts (`~/.claude/projects/**/*.jsonl`) — the files the CLI already writes
-on your own machine. Nothing leaves the machine: `tokmon` makes no network calls at all.
+on your own machine. **Nothing leaves the machine: `tokmon` makes no network calls at all.**
+
+Usage records are deduplicated by message id and reconciled with an element-wise maximum, because a
+streaming runtime writes an early snapshot and a final record for the same model call: counting both
+double-counts the call, and keeping only the first halves the output.
 
 ## Install
 
 ```bash
-cp bin/tokmon ~/bin/tokmon && chmod +x ~/bin/tokmon   # needs python3 only, no dependencies
+cp bin/tokmon ~/bin/tokmon && chmod +x ~/bin/tokmon   # python3 only, no dependencies
 tokmon
 ```
 
@@ -39,38 +58,50 @@ tokmon
 | command | what it shows |
 |---|---|
 | `tokmon` | what is burning tokens right now |
-| `tokmon разбор [hours]` | breakdown: sessions and what specifically inflated the context |
-| `tokmon окно` | the current 5-hour subscription window |
+| `tokmon detail [hours]` | run efficiency, sessions, and what specifically inflated the context |
+| `tokmon window` | the current 5-hour subscription window |
 | `tokmon --json` | machine-readable state (used by the menu-bar app) |
 | `tokmon --probe <hours>` | raw JSON dump of the parsed sessions |
 
 ### Configuration
 
-| env var | default | meaning |
+| setting | default | meaning |
 |---|---|---|
-| `TOKMON_DAY_START` | `06:00` | when *your* day starts — the daily total resets here, not at midnight |
+| `TOKMON_LANG` or `~/.config/tokmon/lang` | `en` | interface language: `en` or `ru` |
+| `TOKMON_DAY_START` | `6` | hour your day starts — the daily total resets here, not at midnight |
 | `TOKMON_WARN` | `30000000` | tokens/hour that turns the menu-bar counter yellow |
 | `TOKMON_ALARM` | `90000000` | tokens/hour that turns it red |
 
+The language file exists because the menu-bar app is launched from Finder, where environment
+variables never reach it. `echo ru > ~/.config/tokmon/lang` switches both the app and the CLI.
+Russian command aliases (`разбор`, `окно`) also work.
+
 ## Menu-bar app (macOS)
 
-`app/main.swift` is a tiny `LSUIElement` status-bar app: it polls `tokmon --json` once a minute and
-shows the current burn rate in the menu bar, with an hourly graph. Click a bar in the graph to see
-the breakdown for that exact hour.
+`app/main.swift` is a small status-bar app: it polls `tokmon --json` once a minute and shows the
+current burn rate in the menu bar, with an hourly graph. Click a bar to see that hour's breakdown.
 
 ```bash
 swiftc -O -o TokMon app/main.swift
 ```
 
-Point it at the CLI with `TOKMON_BIN=/path/to/tokmon` if it isn't in `~/bin` or the usual Homebrew
-locations.
+Point it at the CLI with `TOKMON_BIN=/path/to/tokmon` if it is not in `~/bin` or the usual
+Homebrew locations.
 
 ## Notes
 
-- Prices are per-million-token rates for the current Claude models and live at the top of
-  `bin/tokmon` — update them there when they change.
-- CLI output and comments are currently in Russian; the code itself is plain Python 3 with no
-  dependencies. An English translation is a welcome PR.
+- Prices are per-million-token rates for current Claude models and live at the top of
+  `bin/tokmon`. Update them there when they change; the cost-weighted share depends on them.
+
+## Citing
+
+If you use `tokmon` or its efficiency measure in your work, GitHub's **"Cite this repository"**
+button gives the reference — metadata is in [`CITATION.cff`](CITATION.cff).
+
+## Author
+
+Evgenii Arsentev — [arsentev.ai](https://arsentev.ai) ·
+ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)
 
 ## License
 

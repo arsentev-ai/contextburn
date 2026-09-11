@@ -1,0 +1,50 @@
+cff-version: 1.2.0
+title: "tokmon: a run-efficiency meter for language-model coding agents"
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+authors:
+  - family-names: Arsentev
+    given-names: Evgenii
+    orcid: "https://orcid.org/0000-0002-9120-7298"
+    website: "https://arsentev.ai"
+repository-code: "https://github.com/arsentev-ai/tokmon"
+url: "https://arsentev.ai"
+abstract: >-
+  tokmon reads the local transcripts an LLM coding agent already writes and reports where the
+  tokens actually went — by session, by machine and by reason. Beyond the usual counters it
+  reports run efficiency: the share of paid tokens that became model output rather than a
+  re-reading of context already sent. The share is given twice, by tokens and weighted by
+  price, because the first is a property of agents and the second is a property of how the
+  operator works. Nothing leaves the machine; the tool makes no network calls.
+keywords:
+  - large language models
+  - coding agents
+  - context window
+  - token accounting
+  - observability
+  - cost efficiency
+license: MIT
+references:
+  - type: report
+    title: "Clear Every Third Task: A Measured U-Curve in the Context Economy of Coding Agents"
+    authors:
+      - family-names: Arsentev
+        given-names: Evgenii
+        orcid: "https://orcid.org/0000-0002-9120-7298"
+    doi: "10.5281/zenodo.22699668"
+    year: 2026
+    notes: "The controlled experiment this tool's efficiency metric is derived from."
+  - type: report
+    title: >-
+      Agent Run Metrics: A JSON Interchange Format for Resource Accounting of
+      Language-Model Agent Runs
+    authors:
+      - family-names: Arsentev
+        given-names: Evgenii
+        orcid: "https://orcid.org/0000-0002-9120-7298"
+    institution:
+      name: Internet Engineering Task Force
+    number: draft-arsentev-agent-run-metrics-00
+    year: 2026
+    url: "https://datatracker.ietf.org/doc/draft-arsentev-agent-run-metrics/"
+    notes: "The interchange format this tool implements."

@@ -1,0 +1,37 @@
+{
+  "@context": "https://w3id.org/codemeta/3.0",
+  "@type": "SoftwareSourceCode",
+  "name": "tokmon",
+  "description": "A run-efficiency meter for language-model coding agents: reads local Claude Code transcripts and reports the share of paid tokens that became model output rather than a re-reading of context already sent, by tokens and cost-weighted. Makes no network calls.",
+  "codeRepository": "https://github.com/arsentev-ai/tokmon",
+  "url": "https://arsentev.ai",
+  "license": "https://spdx.org/licenses/MIT",
+  "programmingLanguage": ["Python", "Swift"],
+  "operatingSystem": ["macOS", "Linux"],
+  "runtimePlatform": "Python 3",
+  "developmentStatus": "active",
+  "keywords": [
+    "large language models",
+    "coding agents",
+    "context window",
+    "token accounting",
+    "observability",
+    "cost efficiency"
+  ],
+  "author": [
+    {
+      "@type": "Person",
+      "@id": "https://orcid.org/0000-0002-9120-7298",
+      "givenName": "Evgenii",
+      "familyName": "Arsentev",
+      "url": "https://arsentev.ai"
+    }
+  ],
+  "referencePublication": [
+    {
+      "@type": "ScholarlyArticle",
+      "name": "Clear Every Third Task: A Measured U-Curve in the Context Economy of Coding Agents",
+      "identifier": "https://doi.org/10.5281/zenodo.22699668"
+    }
+  ]
+}
