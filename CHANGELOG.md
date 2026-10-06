@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Usage records are now deduplicated by message id, keeping the element-wise maximum, as the
+  README describes. Claude Code writes one model call as several lines (a streaming snapshot and
+  one line per content block), and each line carries the same usage; earlier versions counted
+  every line, so token totals and turn counts were inflated (about 1.9x on the last 72 hours of
+  transcripts on one machine).
+
 ## [0.2.1] — 2026-09-11
 
 ### Changed

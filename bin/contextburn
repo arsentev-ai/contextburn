@@ -151,6 +151,7 @@ def parse_file(path, cut, detail):
     try: want_probes = (time.time() - os.path.getmtime(path)) < 3 * 86400   # чат ищем только у свежих
     except OSError: want_probes = False
     tools = {}                                # id блока tool_use -> подпись
+    calls = {}                                # id сообщения -> {c, t, mdl}: дедупликация повторных записей
     entries = []                              # что вошло в контекст (для разбора причин)
     try: fh = open(path, errors="ignore")
     except OSError: return None
@@ -208,23 +209,36 @@ def parse_file(path, cut, detail):
             if t and t < cut: continue
 
             cc = u.get("cache_creation") or {}
-            i   = u.get("input_tokens", 0)
-            cr  = u.get("cache_read_input_tokens", 0)
-            w5  = cc.get("ephemeral_5m_input_tokens", 0)
-            w1h = cc.get("ephemeral_1h_input_tokens", 0)
-            if not (w5 or w1h): w5 = u.get("cache_creation_input_tokens", 0)
-            o   = u.get("output_tokens", 0)
+            i   = u.get("input_tokens", 0) or 0
+            cr  = u.get("cache_read_input_tokens", 0) or 0
+            w5  = cc.get("ephemeral_5m_input_tokens", 0) or 0
+            w1h = cc.get("ephemeral_1h_input_tokens", 0) or 0
+            if not (w5 or w1h): w5 = u.get("cache_creation_input_tokens", 0) or 0
+            o   = u.get("output_tokens", 0) or 0
             c = dict(inp=i, cw5=w5, cw1h=w1h, cr=cr, out=o)
-            tot = sum(c.values())
-            for k, v in c.items(): cost[k] += v
-            tok.update(inp=i, cw5=w5, cw1h=w1h, cr=cr, out=o)
-            models[mdl.replace("claude-", "")] += 1
+            # One model call is written as several lines sharing a message id (a streaming
+            # snapshot, then the final record; one line per content block). Count it once,
+            # keeping the element-wise maximum of its usage fields.
+            mid = m.get("id") or d.get("requestId") or ("#line", len(calls))
+            prev = calls.get(mid)
+            if prev is not None:
+                for k, v in c.items():
+                    if v > prev["c"][k]: prev["c"][k] = v
+                if t and not prev["t"]: prev["t"] = t
+                continue
+            calls[mid] = dict(c=c, t=t, mdl=mdl)
             turns += 1
-            cur = i + cr + w5 + w1h
-            if cur > 1000: ctxs.append(cur)
-            if t:
-                buckets[int(t // BUCKET)] += tot
-                last = max(last, t); first = first or t
+    for call in calls.values():
+        c, t = call["c"], call["t"]
+        tot = sum(c.values())
+        for k, v in c.items(): cost[k] += v
+        tok.update(c)
+        models[call["mdl"].replace("claude-", "")] += 1
+        cur = c["inp"] + c["cr"] + c["cw5"] + c["cw1h"]
+        if cur > 1000: ctxs.append(cur)
+        if t:
+            buckets[int(t // BUCKET)] += tot
+            last = max(last, t); first = first or t
     if not turns: return None
     try: mt = os.path.getmtime(path)
     except OSError: mt = 0
