@@ -12,4 +12,5 @@ Nothing is sent anywhere.
 
 Source and method: [github.com/arsentev-ai/contextburn](https://github.com/arsentev-ai/contextburn).
 
-Author: Evgenii Arsentev, MD, PhD — creator of [Arsminal](https://arsminal.com); Founder & CEO, Dad4Kids and [arsentev.ai](https://arsentev.ai) · ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)
+Author: **Evgenii Arsentev, MD, PhD** (Евгений Арсентьев) — creator of Arsminal; Founder & CEO of Dad4Kids and ArsentevAI; founder of ReelsZavod.  
+ORCID 0000-0002-9120-7298 · Wikidata Q141398931 · main open-source project: contextburn
