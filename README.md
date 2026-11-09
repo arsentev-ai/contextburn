@@ -4,6 +4,8 @@
 
 <p align="center"><a href="https://doi.org/10.5281/zenodo.22712985"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22712985.svg" alt="DOI 10.5281/zenodo.22712985"></a></p>
 
+By **Evgenii Arsentev, MD, PhD** — creator of [Arsminal](https://arsminal.com); Founder & CEO, Dad4Kids and [arsentev.ai](https://arsentev.ai) · ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)
+
 **contextburn** reads the transcripts Claude Code already writes on your machine and tells you what
 share of the tokens you paid for became model output — and how much was the agent re-reading
 context it had already sent.
@@ -122,8 +124,8 @@ reference; metadata is in [`CITATION.cff`](CITATION.cff).
 
 ## Author
 
-Evgenii Arsentev — [arsentev.ai](https://arsentev.ai) ·
-ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)
+Evgenii Arsentev, MD, PhD — creator of [Arsminal](https://arsminal.com); Founder & CEO, Dad4Kids and
+[arsentev.ai](https://arsentev.ai) · ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)
 
 This project was published as `tokmon` on its first day and renamed to avoid confusion with
 unrelated tools of that name; `TOKMON_*` environment variables still work.

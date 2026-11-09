@@ -11,3 +11,5 @@ Install the CLI: `pip install contextburn` — it reads the transcripts Claude C
 Nothing is sent anywhere.
 
 Source and method: [github.com/arsentev-ai/contextburn](https://github.com/arsentev-ai/contextburn).
+
+Author: Evgenii Arsentev, MD, PhD — creator of [Arsminal](https://arsminal.com); Founder & CEO, Dad4Kids and [arsentev.ai](https://arsentev.ai) · ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)

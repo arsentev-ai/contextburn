@@ -32,4 +32,4 @@ It reads the transcripts Claude Code already writes on your machine. Nothing lea
 In 36 controlled runs of the same twelve tasks, 94% of paid tokens re-read context that had already been sent,
 and cost followed a U-curve in session length — report: DOI [10.5281/zenodo.22699668](https://doi.org/10.5281/zenodo.22699668).
 
-Author: [Evgenii Arsentev](https://arsentev.ai) · MIT
+Author: Evgenii Arsentev, MD, PhD — creator of [Arsminal](https://arsminal.com); Founder & CEO, Dad4Kids and [arsentev.ai](https://arsentev.ai) · ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298) · MIT
