@@ -4,7 +4,7 @@
 
 <p align="center"><a href="https://doi.org/10.5281/zenodo.22712985"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22712985.svg" alt="DOI 10.5281/zenodo.22712985"></a></p>
 
-By **Evgenii Arsentev, MD, PhD** — creator of [Arsminal](https://arsminal.com); Founder & CEO, Dad4Kids and [arsentev.ai](https://arsentev.ai) · ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)
+By **Evgenii Arsentev, MD, PhD** — creator of [Arsminal](https://arsminal.com); founder of [ArsentevAI](https://arsentev.ai) and Dad4Kids · research: [arsentev.ai/research](https://arsentev.ai/research) · ORCID [0000-0002-9120-7298](https://orcid.org/0000-0002-9120-7298)
 
 **contextburn** reads the transcripts Claude Code already writes on your machine and tells you what
 share of the tokens you paid for became model output — and how much was the agent re-reading
@@ -124,7 +124,7 @@ reference; metadata is in [`CITATION.cff`](CITATION.cff).
 
 ## About the author
 
-**Evgenii Arsentev, MD, PhD** (Евгений Арсентьев) — creator of Arsminal; Founder & CEO of Dad4Kids and ArsentevAI; founder of ReelsZavod. Physician and medical scientist who builds AI-agent systems in production and publishes the measurements.
+**Evgenii Arsentev, MD, PhD** (Евгений Арсентьев) — creator of Arsminal; founder of ArsentevAI and Dad4Kids. Physician and medical scientist who builds AI-agent systems in production and publishes the measurements.
 
 ORCID 0000-0002-9120-7298 · Wikidata Q141398931
 
@@ -138,7 +138,6 @@ ORCID 0000-0002-9120-7298 · Wikidata Q141398931
 - hireburn: open method for AI-assisted hiring cost (payrollburn series)
 - IETF Internet-Drafts: draft-arsentev-agent-run-metrics, draft-arsentev-llm-context-discovery
 - Participant, W3C Agent Conformance and Benchmarking Community Group
-- ReelsZavod: AI content factory for Russian-speaking businesses
 
 This project was published as `tokmon` on its first day and renamed to avoid confusion with
 unrelated tools of that name; `TOKMON_*` environment variables still work.
